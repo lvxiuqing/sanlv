@@ -7,12 +7,16 @@ import {
   HistoryOutlined,
   DatabaseOutlined
 } from '@ant-design/icons'
-import UploadPage from './pages/UploadPage'
-import GradePage from './pages/GradePage'
-import ClassPage from './pages/ClassPage'
-import HistoryPage from './pages/HistoryPage'
-import DataManagePage from './pages/DataManagePage'
+import { lazy, Suspense } from 'react'
+import { Spin } from 'antd'
 import './App.css'
+
+// 懒加载页面组件
+const UploadPage = lazy(() => import('./pages/UploadPage'))
+const GradePage = lazy(() => import('./pages/GradePage'))
+const ClassPage = lazy(() => import('./pages/ClassPage'))
+const HistoryPage = lazy(() => import('./pages/HistoryPage'))
+const DataManagePage = lazy(() => import('./pages/DataManagePage'))
 
 const { Header, Content, Sider } = Layout
 
@@ -74,13 +78,19 @@ function App() {
               borderRadius: 8,
             }}
           >
-            <Routes>
-              <Route path="/" element={<UploadPage />} />
-              <Route path="/grade" element={<GradePage />} />
-              <Route path="/class" element={<ClassPage />} />
-              <Route path="/history" element={<HistoryPage />} />
-              <Route path="/manage" element={<DataManagePage />} />
-            </Routes>
+            <Suspense fallback={
+              <div style={{ textAlign: 'center', padding: '50px' }}>
+                <Spin size="large" tip="加载中..." />
+              </div>
+            }>
+              <Routes>
+                <Route path="/" element={<UploadPage />} />
+                <Route path="/grade" element={<GradePage />} />
+                <Route path="/class" element={<ClassPage />} />
+                <Route path="/history" element={<HistoryPage />} />
+                <Route path="/manage" element={<DataManagePage />} />
+              </Routes>
+            </Suspense>
           </Content>
         </Layout>
       </Layout>
