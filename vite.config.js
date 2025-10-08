@@ -23,14 +23,8 @@ export default defineConfig({
         },
       },
     },
-    // 启用压缩
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // 生产环境移除console
-        drop_debugger: true,
-      },
-    },
+    // 使用esbuild压缩（比terser快，且内置）
+    minify: 'esbuild',
     // 设置chunk大小警告的限值
     chunkSizeWarningLimit: 1000,
   },
