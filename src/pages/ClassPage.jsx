@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card, Select, Table, message, Empty } from 'antd'
 import { getAllGrades, getClassesByGrade, getRecordsByGradeClass } from '../utils/storage'
 import {
@@ -123,7 +123,8 @@ function ClassPage() {
   }
 
   // 动态生成学生成绩表列（包含原始分数和降序）
-  const studentColumns = [
+  // 使用useMemo确保在依赖项变化时重新生成列定义
+  const studentColumns = useMemo(() => [
     {
       title: '班级排名',
       dataIndex: 'classRank',
@@ -195,7 +196,7 @@ function ClassPage() {
         )
       },
     },
-  ]
+  ], [subjects, subjectEvaluateStudents, totalEvaluateStudents, allStudents])
 
   const classRateColumns = [
     {
@@ -346,6 +347,13 @@ function ClassPage() {
               <p style={{ margin: '4px 0 0 0', color: '#666' }}>
                 • <strong>各学科分数和降序</strong>：红色表示在该学科全年级排名前90%
               </p>
+              {/* 调试信息 */}
+              {totalEvaluateStudents.length > 0 && (
+                <p style={{ margin: '8px 0 0 0', color: '#999', fontSize: '12px' }}>
+                  调试：总分参评学生 {totalEvaluateStudents.length} 人：{totalEvaluateStudents.slice(0, 5).join('、')}
+                  {totalEvaluateStudents.length > 5 && '...'}
+                </p>
+              )}
             </div>
             <Table
               dataSource={classStudents}
