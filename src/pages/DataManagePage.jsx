@@ -22,16 +22,33 @@ function DataManagePage() {
     confirm({
       title: '确认清除所有数据？',
       icon: <ExclamationCircleOutlined />,
-      content: '此操作将清除所有上传的成绩数据，且无法恢复！建议在学期结束时使用此功能。',
+      content: (
+        <div>
+          <p>此操作将清除：</p>
+          <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
+            <li>所有上传的成绩记录</li>
+            <li>所有历史成绩明细</li>
+            <li>所有学科配置</li>
+          </ul>
+          <p style={{ color: '#ff4d4f', fontWeight: 'bold' }}>数据清除后无法恢复！建议在学期结束时使用此功能。</p>
+        </div>
+      ),
       okText: '确认清除',
       okType: 'danger',
       cancelText: '取消',
       async onOk() {
         setLoading(true)
         try {
-          await clearAllData()
+          const result = await clearAllData()
           setRecords([])
-          message.success('数据已全部清除')
+          message.success(
+            `数据已全部清除！共删除 ${result.deletedRecords} 条成绩记录（含历史记录）和 ${result.deletedConfigs} 条学科配置`,
+            5
+          )
+          // 提示用户刷新其他页面
+          setTimeout(() => {
+            message.info('如需查看效果，请刷新其他页面（年级数据、班级数据、历史对比）', 5)
+          }, 1000)
         } catch (error) {
           message.error('清除失败：' + error.message)
         } finally {
@@ -134,10 +151,12 @@ function DataManagePage() {
         </Space>
 
         <div style={{ marginTop: 16, padding: 16, background: '#fff3cd', borderRadius: 4 }}>
-          <strong>提示：</strong>
+          <strong>⚠️ 重要提示：</strong>
           <p style={{ margin: '8px 0 0 0' }}>
             • 清除数据功能建议在学期结束时使用<br />
-            • 清除后数据无法恢复，请谨慎操作<br />
+            • 将清除<strong>所有成绩记录</strong>和<strong>所有历史成绩明细</strong><br />
+            • 历史对比页面的数据也会被清空<br />
+            • 清除后数据<strong style={{ color: '#ff4d4f' }}>无法恢复</strong>，请谨慎操作<br />
             • 清除前建议先导出重要数据备份
           </p>
         </div>

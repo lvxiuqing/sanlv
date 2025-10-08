@@ -149,23 +149,42 @@ export const getLatestRecord = async (grade, classNum) => {
 // 清除所有数据
 export const clearAllData = async () => {
   try {
-    // 删除所有成绩记录
-    const { error: recordsError } = await supabase
+    // 先获取所有记录ID，确保全部删除
+    const { data: allRecords } = await supabase
       .from('score_records')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000') // 删除所有记录的技巧
+      .select('id')
     
-    if (recordsError) throw recordsError
+    const { data: allConfigs } = await supabase
+      .from('subject_configs')
+      .select('id')
+    
+    // 删除所有成绩记录（包括历史成绩明细）
+    if (allRecords && allRecords.length > 0) {
+      const { error: recordsError } = await supabase
+        .from('score_records')
+        .delete()
+        .in('id', allRecords.map(r => r.id))
+      
+      if (recordsError) throw recordsError
+    }
     
     // 删除所有学科配置
-    const { error: subjectsError } = await supabase
-      .from('subject_configs')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000')
+    if (allConfigs && allConfigs.length > 0) {
+      const { error: subjectsError } = await supabase
+        .from('subject_configs')
+        .delete()
+        .in('id', allConfigs.map(c => c.id))
+      
+      if (subjectsError) throw subjectsError
+    }
     
-    if (subjectsError) throw subjectsError
+    console.log(`已清除 ${allRecords?.length || 0} 条成绩记录（含历史记录）`)
+    console.log(`已清除 ${allConfigs?.length || 0} 条学科配置`)
     
-    return true
+    return {
+      deletedRecords: allRecords?.length || 0,
+      deletedConfigs: allConfigs?.length || 0
+    }
   } catch (error) {
     console.error('清除数据失败:', error)
     throw error
