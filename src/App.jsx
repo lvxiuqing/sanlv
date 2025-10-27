@@ -5,7 +5,8 @@ import {
   BarChartOutlined,
   TeamOutlined,
   HistoryOutlined,
-  DatabaseOutlined
+  DatabaseOutlined,
+  LineChartOutlined
 } from '@ant-design/icons'
 import { lazy, Suspense } from 'react'
 import { Spin } from 'antd'
@@ -16,6 +17,7 @@ const UploadPage = lazy(() => import('./pages/UploadPage'))
 const GradePage = lazy(() => import('./pages/GradePage'))
 const ClassPage = lazy(() => import('./pages/ClassPage'))
 const HistoryPage = lazy(() => import('./pages/HistoryPage'))
+const ThreeRatesHistoryPage = lazy(() => import('./pages/ThreeRatesHistoryPage'))
 const DataManagePage = lazy(() => import('./pages/DataManagePage'))
 
 const { Header, Content, Sider } = Layout
@@ -43,6 +45,11 @@ function App() {
       key: '/history',
       icon: <HistoryOutlined />,
       label: <Link to="/history">历史对比</Link>,
+    },
+    {
+      key: '/three-rates-history',
+      icon: <LineChartOutlined />,
+      label: <Link to="/three-rates-history">三率历史对比</Link>,
     },
     {
       key: '/manage',
@@ -80,7 +87,7 @@ function App() {
           >
             <Suspense fallback={
               <div style={{ textAlign: 'center', padding: '50px' }}>
-                <Spin size="large" tip="加载中..." />
+                <Spin size="large" />
               </div>
             }>
               <Routes>
@@ -88,6 +95,7 @@ function App() {
                 <Route path="/grade" element={<GradePage />} />
                 <Route path="/class" element={<ClassPage />} />
                 <Route path="/history" element={<HistoryPage />} />
+                <Route path="/three-rates-history" element={<ThreeRatesHistoryPage />} />
                 <Route path="/manage" element={<DataManagePage />} />
               </Routes>
             </Suspense>

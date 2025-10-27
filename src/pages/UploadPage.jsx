@@ -2,8 +2,15 @@ import { useState } from 'react'
 import { Upload, Button, Form, InputNumber, message, Card, Table, Input, Space } from 'antd'
 import { UploadOutlined, InboxOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
-import { saveRecord, saveSubjects } from '../utils/storage'
-import { calculateTotalScore } from '../utils/calculator'
+import { saveRecord, saveSubjects, getRecordsByGradeClass } from '../utils/storage'
+import { 
+  calculateTotalScore, 
+  calculateGradeStandards, 
+  calculateSubjectStandards,
+  calculateClassRates,
+  calculateClassSubjectRates,
+  addRankings
+} from '../utils/calculator'
 
 const { Dragger } = Upload
 
@@ -91,18 +98,99 @@ function UploadPage() {
         totalScore: calculateTotalScore(student, subjects)
       }))
 
-      // 保存记录
+      // 获取该年级的所有现有记录（用于计算三率）
+      const existingRecords = await getRecordsByGradeClass(grade)
+      
+      // 合并当前上传的数据和现有数据
+      let allStudentsData = [...studentsWithTotal]
+      const latestRecordsByClass = {}
+      
+      existingRecords.forEach(record => {
+        const classKey = record.class
+        if (!latestRecordsByClass[classKey] || 
+            new Date(record.created_at) > new Date(latestRecordsByClass[classKey].created_at)) {
+          latestRecordsByClass[classKey] = record
+        }
+      })
+      
+      // 合并其他班级的最新数据
+      Object.values(latestRecordsByClass).forEach(record => {
+        if (record.class !== classNum) { // 不包括当前班级的旧数据
+          allStudentsData = allStudentsData.concat(record.students)
+        }
+      })
+
+      // 计算三率（如果有足够的数据）
+      let classRatesData = null
+      let subjectRatesData = null
+      
+      console.log('📊 开始计算三率...')
+      console.log('📊 全年级学生数:', allStudentsData.length)
+      console.log('📊 当前班级:', classNum)
+      
+      if (allStudentsData.length > 0) {
+        try {
+          // 添加排名
+          const rankedStudents = addRankings(allStudentsData)
+          const currentClassStudents = rankedStudents.filter(s => s.class === classNum)
+          
+          console.log('📊 当前班级学生数:', currentClassStudents.length)
+          
+          // 计算年级标准分
+          const gradeStandards = calculateGradeStandards(rankedStudents, subjects)
+          const subjectStandards = calculateSubjectStandards(rankedStudents, subjects)
+          
+          console.log('📊 年级标准分:', gradeStandards)
+          
+          // 计算班级总分三率
+          const totalRates = calculateClassRates(currentClassStudents, gradeStandards, rankedStudents)
+          
+          console.log('📊 计算得到的总分三率:', totalRates)
+          
+          classRatesData = {
+            excellentRate: parseFloat(totalRates.excellentRate),
+            passRate: parseFloat(totalRates.passRate),
+            comprehensiveRate: parseFloat(totalRates.comprehensiveRate),
+            totalRate: parseFloat(totalRates.totalRate),
+            evaluateCount: totalRates.evaluateCount
+          }
+          
+          console.log('📊 保存的classRatesData:', classRatesData)
+          
+          // 计算班级各学科三率
+          subjectRatesData = subjects.map(subject => {
+            const rates = calculateClassSubjectRates(currentClassStudents, subject.name, subjectStandards, rankedStudents)
+            return {
+              subject: subject.name,
+              excellentRate: parseFloat(rates.excellentRate),
+              passRate: parseFloat(rates.passRate),
+              comprehensiveRate: parseFloat(rates.comprehensiveRate),
+              totalRate: parseFloat(rates.totalRate),
+              evaluateCount: rates.evaluateCount
+            }
+          })
+          
+          console.log('📊 保存的subjectRatesData:', subjectRatesData)
+        } catch (error) {
+          console.error('❌ 计算三率失败:', error)
+          console.error('❌ 错误堆栈:', error.stack)
+        }
+      }
+
+      // 保存记录（包含三率数据）
       const record = {
         grade,
         class: classNum,
         subjects,
-        students: studentsWithTotal
+        students: studentsWithTotal,
+        classRates: classRatesData,
+        subjectRates: subjectRatesData
       }
 
       await saveRecord(record)
       await saveSubjects(grade, classNum, subjects)
 
-      message.success('数据保存成功！')
+      message.success('数据保存成功！' + (classRatesData ? '已自动计算三率数据。' : ''))
       
       // 重置表单
       form.resetFields()
