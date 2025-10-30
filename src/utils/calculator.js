@@ -224,6 +224,334 @@ export const calculateClassSubjectRates = (classStudents, subjectName, subjectSt
   }
 }
 
+// 计算年级总分三率
+export const calculateGradeRates = (allStudents, standards) => {
+  if (allStudents.length === 0) {
+    return {
+      excellentRate: 0,
+      passRate: 0,
+      comprehensiveRate: 0,
+      totalRate: 0
+    }
+  }
+  
+  // 第一步：将全年级学生按总分从高到低排序
+  const sortedByTotal = [...allStudents].sort((a, b) => b.totalScore - a.totalScore)
+  
+  // 第二步：取前90%作为参评学生
+  const gradeEvaluateCount = Math.floor(sortedByTotal.length * 0.9)
+  const gradeEvaluateStudents = sortedByTotal.slice(0, gradeEvaluateCount)
+  
+  if (gradeEvaluateCount === 0) {
+    return {
+      excellentRate: 0,
+      passRate: 0,
+      comprehensiveRate: 0,
+      totalRate: 0
+    }
+  }
+  
+  // 优秀率 = 参评学生中总分大于等于优秀率标准分的学生人数 / 参评人数 × 100%
+  const excellentCount = gradeEvaluateStudents.filter(s => 
+    s.totalScore >= standards.excellentStandard
+  ).length
+  const excellentRate = (excellentCount / gradeEvaluateCount) * 100
+  
+  // 及格率 = 参评学生中总分大于等于及格率标准分的学生人数 / 参评人数 × 100%
+  const passCount = gradeEvaluateStudents.filter(s => 
+    s.totalScore >= standards.passStandard
+  ).length
+  const passRate = (passCount / gradeEvaluateCount) * 100
+  
+  // 综合率 = 参评学生中总分大于等于综合率标准分的学生人数 / 参评人数 × 100%
+  const comprehensiveCount = gradeEvaluateStudents.filter(s => 
+    s.totalScore >= standards.comprehensiveStandard
+  ).length
+  const comprehensiveRate = (comprehensiveCount / gradeEvaluateCount) * 100
+  
+  // 三率之和
+  const totalRate = excellentRate + passRate + comprehensiveRate
+  
+  return {
+    excellentRate: excellentRate.toFixed(2),
+    passRate: passRate.toFixed(2),
+    comprehensiveRate: comprehensiveRate.toFixed(2),
+    totalRate: totalRate.toFixed(2)
+  }
+}
+
+// 计算年级各学科三率
+export const calculateGradeSubjectRates = (allStudents, subjects, subjectStandards) => {
+  const subjectRates = {}
+  
+  subjects.forEach(subject => {
+    const subjectName = subject.name
+    
+    if (allStudents.length === 0) {
+      subjectRates[subjectName] = {
+        excellentRate: 0,
+        passRate: 0,
+        comprehensiveRate: 0,
+        totalRate: 0
+      }
+      return
+    }
+    
+    // 第一步：将全年级学生按该学科分数从高到低排序
+    const sortedBySubject = [...allStudents].sort((a, b) => 
+      (parseFloat(b[subjectName]) || 0) - (parseFloat(a[subjectName]) || 0)
+    )
+    
+    // 第二步：取前90%作为该学科的参评学生
+    const gradeEvaluateCount = Math.floor(sortedBySubject.length * 0.9)
+    const gradeEvaluateStudents = sortedBySubject.slice(0, gradeEvaluateCount)
+    
+    if (gradeEvaluateCount === 0) {
+      subjectRates[subjectName] = {
+        excellentRate: 0,
+        passRate: 0,
+        comprehensiveRate: 0,
+        totalRate: 0
+      }
+      return
+    }
+    
+    const standards = subjectStandards[subjectName]
+    
+    // 优秀率 = 参评学生中该学科分数大于等于优秀率标准分的学生人数 / 参评人数 × 100%
+    const excellentCount = gradeEvaluateStudents.filter(s => 
+      (parseFloat(s[subjectName]) || 0) >= standards.excellentStandard
+    ).length
+    const excellentRate = (excellentCount / gradeEvaluateCount) * 100
+    
+    // 及格率 = 参评学生中该学科分数大于等于及格率标准分的学生人数 / 参评人数 × 100%
+    const passCount = gradeEvaluateStudents.filter(s => 
+      (parseFloat(s[subjectName]) || 0) >= standards.passStandard
+    ).length
+    const passRate = (passCount / gradeEvaluateCount) * 100
+    
+    // 综合率 = 参评学生中该学科分数大于等于综合率标准分的学生人数 / 参评人数 × 100%
+    const comprehensiveCount = gradeEvaluateStudents.filter(s => 
+      (parseFloat(s[subjectName]) || 0) >= standards.comprehensiveStandard
+    ).length
+    const comprehensiveRate = (comprehensiveCount / gradeEvaluateCount) * 100
+    
+    // 三率之和
+    const totalRate = excellentRate + passRate + comprehensiveRate
+    
+    subjectRates[subjectName] = {
+      excellentRate: excellentRate.toFixed(2),
+      passRate: passRate.toFixed(2),
+      comprehensiveRate: comprehensiveRate.toFixed(2),
+      totalRate: totalRate.toFixed(2)
+    }
+  })
+  
+  return subjectRates
+}
+
+// 计算班级自己的总分三率标准分
+export const calculateClassOwnStandards = (classStudents, subjects) => {
+  // 第一步：将班级所有学生按总分从高到低排序
+  const sortedByTotal = [...classStudents]
+    .sort((a, b) => b.totalScore - a.totalScore)
+  
+  // 第二步：参评人数取本班总人数的95%
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  if (evaluateCount === 0) {
+    const totalPossibleScore = subjects.reduce((sum, s) => sum + s.totalScore, 0)
+    return {
+      excellentStandard: 0,
+      passStandard: totalPossibleScore * 0.6,
+      comprehensiveStandard: 0,
+      evaluateCount: 0
+    }
+  }
+  
+  // 第三步：优秀率标准分 - 取参评人数的第前20%名学生分数
+  const excellentIndex = Math.floor(evaluateCount * 0.2) - 1
+  const excellentStandard = excellentIndex >= 0 
+    ? evaluateStudents[excellentIndex].totalScore 
+    : evaluateStudents[0]?.totalScore || 0
+  
+  // 及格率标准分：取学科总分的60%的分数
+  const totalPossibleScore = subjects.reduce((sum, s) => sum + s.totalScore, 0)
+  const passStandard = totalPossibleScore * 0.6
+  
+  // 综合率标准分：取全部参评学生的总分平均分
+  const avgScore = evaluateStudents.reduce((sum, s) => sum + s.totalScore, 0) / evaluateCount
+  const comprehensiveStandard = avgScore
+  
+  return {
+    excellentStandard,
+    passStandard,
+    comprehensiveStandard,
+    evaluateCount
+  }
+}
+
+// 计算班级自己的各学科三率标准分
+export const calculateClassOwnSubjectStandards = (classStudents, subjects) => {
+  const subjectStandards = {}
+  
+  // 按总分排序，参评人数取本班总人数的95%
+  const sortedByTotal = [...classStudents]
+    .sort((a, b) => b.totalScore - a.totalScore)
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  subjects.forEach(subject => {
+    if (evaluateCount === 0) {
+      subjectStandards[subject.name] = {
+        excellentStandard: 0,
+        passStandard: subject.totalScore * 0.6,
+        comprehensiveStandard: 0
+      }
+      return
+    }
+    
+    // 第一步：将参评学生按该学科成绩从高到低排序
+    const sortedBySubject = [...evaluateStudents]
+      .sort((a, b) => (parseFloat(b[subject.name]) || 0) - (parseFloat(a[subject.name]) || 0))
+    
+    // 第二步：优秀率标准分 - 取参评人数的第前20%名学生分数
+    const excellentIndex = Math.floor(evaluateCount * 0.2) - 1
+    const excellentStandard = excellentIndex >= 0
+      ? (parseFloat(sortedBySubject[excellentIndex][subject.name]) || 0)
+      : (parseFloat(sortedBySubject[0]?.[subject.name]) || 0)
+    
+    // 及格率标准分：取该学科总分的60%的分数
+    const passStandard = subject.totalScore * 0.6
+    
+    // 综合率标准分：取全部参评学生的该学科平均分
+    const avgScore = evaluateStudents.reduce((sum, s) => 
+      sum + (parseFloat(s[subject.name]) || 0), 0) / evaluateCount
+    
+    subjectStandards[subject.name] = {
+      excellentStandard,
+      passStandard,
+      comprehensiveStandard: avgScore
+    }
+  })
+  
+  return subjectStandards
+}
+
+// 计算班级自己的总分三率
+export const calculateClassOwnRates = (classStudents, classStandards) => {
+  if (classStudents.length === 0) {
+    return {
+      excellentRate: 0,
+      passRate: 0,
+      comprehensiveRate: 0,
+      totalRate: 0
+    }
+  }
+  
+  // 按总分从高到低排序
+  const sortedByTotal = [...classStudents].sort((a, b) => b.totalScore - a.totalScore)
+  
+  // 取前95%作为参评学生
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  if (evaluateCount === 0) {
+    return {
+      excellentRate: 0,
+      passRate: 0,
+      comprehensiveRate: 0,
+      totalRate: 0
+    }
+  }
+  
+  // 优秀率 = 参评学生中总分大于等于优秀率标准分的学生人数 / 参评人数 × 100%
+  const excellentCount = evaluateStudents.filter(s => 
+    s.totalScore >= classStandards.excellentStandard
+  ).length
+  const excellentRate = (excellentCount / evaluateCount) * 100
+  
+  // 及格率 = 参评学生中总分大于等于及格率标准分的学生人数 / 参评人数 × 100%
+  const passCount = evaluateStudents.filter(s => 
+    s.totalScore >= classStandards.passStandard
+  ).length
+  const passRate = (passCount / evaluateCount) * 100
+  
+  // 综合率 = 参评学生中总分大于等于综合率标准分的学生人数 / 参评人数 × 100%
+  const comprehensiveCount = evaluateStudents.filter(s => 
+    s.totalScore >= classStandards.comprehensiveStandard
+  ).length
+  const comprehensiveRate = (comprehensiveCount / evaluateCount) * 100
+  
+  // 三率之和
+  const totalRate = excellentRate + passRate + comprehensiveRate
+  
+  return {
+    excellentRate: excellentRate.toFixed(2),
+    passRate: passRate.toFixed(2),
+    comprehensiveRate: comprehensiveRate.toFixed(2),
+    totalRate: totalRate.toFixed(2)
+  }
+}
+
+// 计算班级自己的各学科三率
+export const calculateClassOwnSubjectRates = (classStudents, subjects, classSubjectStandards) => {
+  const subjectRates = {}
+  
+  // 按总分排序，参评人数取本班总人数的95%
+  const sortedByTotal = [...classStudents]
+    .sort((a, b) => b.totalScore - a.totalScore)
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  subjects.forEach(subject => {
+    const subjectName = subject.name
+    
+    if (evaluateCount === 0) {
+      subjectRates[subjectName] = {
+        excellentRate: 0,
+        passRate: 0,
+        comprehensiveRate: 0,
+        totalRate: 0
+      }
+      return
+    }
+    
+    const standards = classSubjectStandards[subjectName]
+    
+    // 优秀率 = 参评学生中该学科分数大于等于优秀率标准分的学生人数 / 参评人数 × 100%
+    const excellentCount = evaluateStudents.filter(s => 
+      (parseFloat(s[subjectName]) || 0) >= standards.excellentStandard
+    ).length
+    const excellentRate = (excellentCount / evaluateCount) * 100
+    
+    // 及格率 = 参评学生中该学科分数大于等于及格率标准分的学生人数 / 参评人数 × 100%
+    const passCount = evaluateStudents.filter(s => 
+      (parseFloat(s[subjectName]) || 0) >= standards.passStandard
+    ).length
+    const passRate = (passCount / evaluateCount) * 100
+    
+    // 综合率 = 参评学生中该学科分数大于等于综合率标准分的学生人数 / 参评人数 × 100%
+    const comprehensiveCount = evaluateStudents.filter(s => 
+      (parseFloat(s[subjectName]) || 0) >= standards.comprehensiveStandard
+    ).length
+    const comprehensiveRate = (comprehensiveCount / evaluateCount) * 100
+    
+    // 三率之和
+    const totalRate = excellentRate + passRate + comprehensiveRate
+    
+    subjectRates[subjectName] = {
+      excellentRate: excellentRate.toFixed(2),
+      passRate: passRate.toFixed(2),
+      comprehensiveRate: comprehensiveRate.toFixed(2),
+      totalRate: totalRate.toFixed(2)
+    }
+  })
+  
+  return subjectRates
+}
+
 // 添加班级排名和年级排名
 export const addRankings = (allStudents) => {
   // 按总分排序（年级排名）

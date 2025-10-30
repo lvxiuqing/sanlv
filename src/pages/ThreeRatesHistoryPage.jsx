@@ -2,6 +2,12 @@ import { useState, useEffect } from 'react'
 import { Card, Select, Table, Empty, message } from 'antd'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { getAllGrades, getClassesByGrade, getRecordsByGradeClass } from '../utils/storage'
+import {
+  calculateClassOwnStandards,
+  calculateClassOwnSubjectStandards,
+  calculateClassOwnRates,
+  calculateClassOwnSubjectRates
+} from '../utils/calculator'
 
 const { Option } = Select
 
@@ -12,6 +18,7 @@ function ThreeRatesHistoryPage() {
   const [selectedClass, setSelectedClass] = useState(null)
   const [historyData, setHistoryData] = useState([])
   const [subjectNames, setSubjectNames] = useState([])
+  const [subjectHistoryData, setSubjectHistoryData] = useState({})
 
   useEffect(() => {
     const loadGrades = async () => {
@@ -46,65 +53,94 @@ function ThreeRatesHistoryPage() {
   const loadThreeRatesHistory = async (grade, classNum) => {
     const records = await getRecordsByGradeClass(grade, classNum)
     
-    console.log('📊 获取到的记录数:', records.length)
-    console.log('📊 记录详情:', records)
-    
     if (records.length === 0) {
       message.warning('暂无历史数据')
       setHistoryData([])
       setSubjectNames([])
+      setSubjectHistoryData({})
       return
     }
 
-    // 过滤出有三率数据的记录
-    const validRecords = records.filter(record => record.classRates || record.subjectRates)
-    
-    console.log('📊 有三率数据的记录数:', validRecords.length)
-    console.log('📊 有效记录:', validRecords)
-    
-    if (validRecords.length === 0) {
-      message.warning('暂无三率历史数据。请重新上传成绩以生成三率数据。')
-      console.log('⚠️ 记录示例（检查是否有classRates字段）:', records[0])
-      setHistoryData([])
-      setSubjectNames([])
-      return
-    }
-
-    // 将记录按时间升序排列
-    const sortedRecords = [...validRecords].reverse()
+    // 将记录按时间升序排列（因为从数据库获取的是降序）
+    const sortedRecords = [...records].reverse()
 
     // 收集所有学科名称
-    const allSubjects = new Set()
-    sortedRecords.forEach(record => {
-      if (record.subjectRates) {
-        record.subjectRates.forEach(sr => allSubjects.add(sr.subject))
-      }
-    })
-    setSubjectNames(Array.from(allSubjects))
+    const allSubjects = sortedRecords[0]?.subjects || []
+    setSubjectNames(allSubjects.map(s => s.name))
 
     // 构建历史数据
-    const history = sortedRecords.map((record, index) => {
+    const history = []
+    const subjectHistory = {}
+
+    // 初始化学科历史数据结构
+    allSubjects.forEach(subject => {
+      subjectHistory[subject.name] = {
+        excellentRate: [],
+        passRate: [],
+        comprehensiveRate: [],
+        totalRate: []
+      }
+    })
+
+    sortedRecords.forEach((record, index) => {
+      const classStudents = record.students
+
+      // 计算班级自己的总分三率标准分
+      const classOwnStd = calculateClassOwnStandards(classStudents, record.subjects)
+
+      // 计算班级自己的各学科三率标准分
+      const classOwnSubjectStd = calculateClassOwnSubjectStandards(classStudents, record.subjects)
+
+      // 计算班级自己的总分三率
+      const classOwnRts = calculateClassOwnRates(classStudents, classOwnStd)
+
+      // 计算班级自己的各学科三率
+      const classOwnSubjectRts = calculateClassOwnSubjectRates(classStudents, record.subjects, classOwnSubjectStd)
+
       const dataPoint = {
         time: `第${index + 1}次`,
         timestamp: new Date(record.created_at).toLocaleDateString('zh-CN'),
-        totalRate: record.classRates ? record.classRates.totalRate : null,
-        excellentRate: record.classRates ? record.classRates.excellentRate : null,
-        passRate: record.classRates ? record.classRates.passRate : null,
-        comprehensiveRate: record.classRates ? record.classRates.comprehensiveRate : null,
-        evaluateCount: record.classRates ? record.classRates.evaluateCount : null,
+        evaluateCount: classOwnStd.evaluateCount,
+        excellentRate: parseFloat(classOwnRts.excellentRate),
+        passRate: parseFloat(classOwnRts.passRate),
+        comprehensiveRate: parseFloat(classOwnRts.comprehensiveRate),
+        totalRate: parseFloat(classOwnRts.totalRate),
       }
 
-      // 添加各学科三率之和
-      if (record.subjectRates) {
-        record.subjectRates.forEach(sr => {
-          dataPoint[`${sr.subject}_totalRate`] = sr.totalRate
+      // 添加各学科三率数据
+      allSubjects.forEach(subject => {
+        const subjectName = subject.name
+        const rates = classOwnSubjectRts[subjectName]
+        
+        dataPoint[`${subjectName}_excellentRate`] = parseFloat(rates.excellentRate)
+        dataPoint[`${subjectName}_passRate`] = parseFloat(rates.passRate)
+        dataPoint[`${subjectName}_comprehensiveRate`] = parseFloat(rates.comprehensiveRate)
+        dataPoint[`${subjectName}_totalRate`] = parseFloat(rates.totalRate)
+
+        // 收集各学科的历史数据用于单独的图表
+        subjectHistory[subjectName].excellentRate.push({
+          time: `第${index + 1}次`,
+          value: parseFloat(rates.excellentRate)
         })
-      }
+        subjectHistory[subjectName].passRate.push({
+          time: `第${index + 1}次`,
+          value: parseFloat(rates.passRate)
+        })
+        subjectHistory[subjectName].comprehensiveRate.push({
+          time: `第${index + 1}次`,
+          value: parseFloat(rates.comprehensiveRate)
+        })
+        subjectHistory[subjectName].totalRate.push({
+          time: `第${index + 1}次`,
+          value: parseFloat(rates.totalRate)
+        })
+      })
 
-      return dataPoint
+      history.push(dataPoint)
     })
 
     setHistoryData(history)
+    setSubjectHistoryData(subjectHistory)
   }
 
   // 总分三率趋势图的表格列
@@ -126,39 +162,38 @@ function ThreeRatesHistoryPage() {
       dataIndex: 'evaluateCount',
       key: 'evaluateCount',
       width: 100,
-      render: (val) => val !== null ? val : '-',
     },
     {
       title: '优秀率',
       dataIndex: 'excellentRate',
       key: 'excellentRate',
       width: 100,
-      render: (val) => val !== null ? `${val}%` : '-',
+      render: (val) => <span style={{ color: '#52c41a' }}>{val.toFixed(2)}%</span>,
     },
     {
       title: '及格率',
       dataIndex: 'passRate',
       key: 'passRate',
       width: 100,
-      render: (val) => val !== null ? `${val}%` : '-',
+      render: (val) => <span style={{ color: '#1890ff' }}>{val.toFixed(2)}%</span>,
     },
     {
       title: '综合率',
       dataIndex: 'comprehensiveRate',
       key: 'comprehensiveRate',
       width: 100,
-      render: (val) => val !== null ? `${val}%` : '-',
+      render: (val) => <span style={{ color: '#faad14' }}>{val.toFixed(2)}%</span>,
     },
     {
       title: '三率之和',
       dataIndex: 'totalRate',
       key: 'totalRate',
       width: 120,
-      render: (val) => val !== null ? <strong style={{ color: '#1890ff' }}>{val}%</strong> : '-',
+      render: (val) => <strong style={{ color: '#f5222d' }}>{val.toFixed(2)}%</strong>,
     },
   ]
 
-  // 各学科三率之和的表格列
+  // 各学科三率的表格列
   const subjectRateColumns = [
     {
       title: '时间',
@@ -174,13 +209,36 @@ function ThreeRatesHistoryPage() {
       width: 120,
       fixed: 'left',
     },
-    ...subjectNames.map(subject => ({
-      title: `${subject}三率之和`,
-      dataIndex: `${subject}_totalRate`,
-      key: `${subject}_totalRate`,
-      width: 120,
-      render: (val) => val !== null ? `${val}%` : '-',
-    })),
+    ...subjectNames.flatMap(subject => [
+      {
+        title: `${subject}优秀率`,
+        dataIndex: `${subject}_excellentRate`,
+        key: `${subject}_excellentRate`,
+        width: 110,
+        render: (val) => val !== undefined ? `${val.toFixed(2)}%` : '-',
+      },
+      {
+        title: `${subject}及格率`,
+        dataIndex: `${subject}_passRate`,
+        key: `${subject}_passRate`,
+        width: 110,
+        render: (val) => val !== undefined ? `${val.toFixed(2)}%` : '-',
+      },
+      {
+        title: `${subject}综合率`,
+        dataIndex: `${subject}_comprehensiveRate`,
+        key: `${subject}_comprehensiveRate`,
+        width: 110,
+        render: (val) => val !== undefined ? `${val.toFixed(2)}%` : '-',
+      },
+      {
+        title: `${subject}三率之和`,
+        dataIndex: `${subject}_totalRate`,
+        key: `${subject}_totalRate`,
+        width: 120,
+        render: (val) => val !== undefined ? <strong>{val.toFixed(2)}%</strong> : '-',
+      },
+    ]),
   ]
 
   return (
@@ -219,7 +277,7 @@ function ThreeRatesHistoryPage() {
         {historyData.length > 0 && (
           <div style={{ marginTop: 16, padding: 12, background: '#f0f2f5', borderRadius: 4 }}>
             <p style={{ margin: 0, color: '#666' }}>
-              <strong>说明：</strong>显示该班级每次上传成绩时计算的三率数据历史记录。
+              <strong>说明：</strong>显示该班级每次考试的三率数据变化趋势（基于本班前95%学生计算）
             </p>
           </div>
         )}
@@ -227,29 +285,9 @@ function ThreeRatesHistoryPage() {
 
       {historyData.length > 0 ? (
         <>
-          {/* 班级总分三率之和趋势图 */}
-          <Card title="班级总分三率之和趋势图" style={{ marginBottom: 24 }}>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={historyData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="totalRate" 
-                  stroke="#1890ff" 
-                  strokeWidth={2}
-                  name="三率之和"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-
-          {/* 班级总分三率明细趋势图 */}
-          <Card title="班级总分三率明细趋势图" style={{ marginBottom: 24 }}>
-            <ResponsiveContainer width="100%" height={300}>
+          {/* 班级总分三率趋势图（包含优秀率、及格率、综合率、三率之和） */}
+          <Card title="班级总分三率趋势图" style={{ marginBottom: 24 }}>
+            <ResponsiveContainer width="100%" height={400}>
               <LineChart data={historyData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="time" />
@@ -266,48 +304,72 @@ function ThreeRatesHistoryPage() {
                 <Line 
                   type="monotone" 
                   dataKey="passRate" 
-                  stroke="#faad14" 
+                  stroke="#1890ff" 
                   strokeWidth={2}
                   name="及格率"
                 />
                 <Line 
                   type="monotone" 
                   dataKey="comprehensiveRate" 
-                  stroke="#722ed1" 
+                  stroke="#faad14" 
                   strokeWidth={2}
                   name="综合率"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="totalRate" 
+                  stroke="#f5222d" 
+                  strokeWidth={3}
+                  name="三率之和"
+                  strokeDasharray="5 5"
                 />
               </LineChart>
             </ResponsiveContainer>
           </Card>
 
-          {/* 各学科三率之和趋势图 */}
-          {subjectNames.length > 0 && (
-            <Card title="各学科三率之和趋势图" style={{ marginBottom: 24 }}>
-              <ResponsiveContainer width="100%" height={400}>
+          {/* 各学科三率趋势图（每个学科一个图表） */}
+          {subjectNames.length > 0 && subjectNames.map((subject, index) => (
+            <Card key={subject} title={`${subject}三率趋势图`} style={{ marginBottom: 24 }}>
+              <ResponsiveContainer width="100%" height={350}>
                 <LineChart data={historyData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="time" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  {subjectNames.map((subject, index) => {
-                    const colors = ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#a28ed1', '#f5a623']
-                    return (
-                      <Line
-                        key={subject}
-                        type="monotone"
-                        dataKey={`${subject}_totalRate`}
-                        stroke={colors[index % colors.length]}
-                        strokeWidth={2}
-                        name={`${subject}三率之和`}
-                      />
-                    )
-                  })}
+                  <Line
+                    type="monotone"
+                    dataKey={`${subject}_excellentRate`}
+                    stroke="#52c41a"
+                    strokeWidth={2}
+                    name="优秀率"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey={`${subject}_passRate`}
+                    stroke="#1890ff"
+                    strokeWidth={2}
+                    name="及格率"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey={`${subject}_comprehensiveRate`}
+                    stroke="#faad14"
+                    strokeWidth={2}
+                    name="综合率"
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey={`${subject}_totalRate`}
+                    stroke="#f5222d"
+                    strokeWidth={3}
+                    name="三率之和"
+                    strokeDasharray="5 5"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </Card>
-          )}
+          ))}
 
           {/* 班级总分三率历史数据明细表 */}
           <Card title="班级总分三率历史数据明细" style={{ marginBottom: 24 }}>
@@ -321,9 +383,9 @@ function ThreeRatesHistoryPage() {
             />
           </Card>
 
-          {/* 各学科三率之和历史数据明细表 */}
+          {/* 各学科三率历史数据明细表 */}
           {subjectNames.length > 0 && (
-            <Card title="各学科三率之和历史数据明细">
+            <Card title="各学科三率历史数据明细">
               <Table
                 dataSource={historyData}
                 columns={subjectRateColumns}
@@ -343,4 +405,3 @@ function ThreeRatesHistoryPage() {
 }
 
 export default ThreeRatesHistoryPage
-

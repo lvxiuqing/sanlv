@@ -6,6 +6,10 @@ import {
   calculateSubjectStandards,
   calculateClassRates,
   calculateClassSubjectRates,
+  calculateClassOwnStandards,
+  calculateClassOwnSubjectStandards,
+  calculateClassOwnRates,
+  calculateClassOwnSubjectRates,
   addRankings
 } from '../utils/calculator'
 
@@ -25,6 +29,10 @@ function ClassPage() {
   const [allStudents, setAllStudents] = useState([])
   const [totalEvaluateStudents, setTotalEvaluateStudents] = useState([])
   const [subjectEvaluateStudents, setSubjectEvaluateStudents] = useState({})
+  const [classOwnStandards, setClassOwnStandards] = useState(null)
+  const [classOwnSubjectStandards, setClassOwnSubjectStandards] = useState(null)
+  const [classOwnRates, setClassOwnRates] = useState(null)
+  const [classOwnSubjectRates, setClassOwnSubjectRates] = useState(null)
 
   useEffect(() => {
     const loadGrades = async () => {
@@ -120,6 +128,22 @@ function ClassPage() {
     })
     setClassSubjectRates(subjectRates)
     setSubjectEvaluateStudents(subjectEvaluateMap)
+
+    // 计算班级自己的总分三率标准分
+    const classOwnStd = calculateClassOwnStandards(classStudentsData, latestRecord.subjects)
+    setClassOwnStandards(classOwnStd)
+
+    // 计算班级自己的各学科三率标准分
+    const classOwnSubjectStd = calculateClassOwnSubjectStandards(classStudentsData, latestRecord.subjects)
+    setClassOwnSubjectStandards(classOwnSubjectStd)
+
+    // 计算班级自己的总分三率
+    const classOwnRts = calculateClassOwnRates(classStudentsData, classOwnStd)
+    setClassOwnRates(classOwnRts)
+
+    // 计算班级自己的各学科三率
+    const classOwnSubjectRts = calculateClassOwnSubjectRates(classStudentsData, latestRecord.subjects, classOwnSubjectStd)
+    setClassOwnSubjectRates(classOwnSubjectRts)
   }
 
   // 动态生成学生成绩表列（包含原始分数和降序）
@@ -153,10 +177,9 @@ function ClassPage() {
         dataIndex: subject.name,
         key: subject.name,
         width: 80,
-        render: (val, record) => {
-          const isEvaluate = subjectEvaluateStudents[subject.name]?.includes(record['姓名'])
+        render: (val) => {
           return (
-            <span style={{ color: isEvaluate ? '#ff4d4f' : 'inherit', fontWeight: isEvaluate ? 'bold' : 'normal' }}>
+            <span style={{ color: '#000' }}>
               {val}
             </span>
           )
@@ -164,22 +187,19 @@ function ClassPage() {
       },
       {
         title: `${subject.name}降序`,
-        key: `${subject.name}_rank`,
+        key: `${subject.name}_desc`,
         width: 100,
         render: (_, record) => {
-          // 计算该学生在该学科的年级排名
+          // 显示该学科的分数，用红色字体
           const score = parseFloat(record[subject.name]) || 0
-          const sortedBySubject = [...allStudents].sort((a, b) => 
-            (parseFloat(b[subject.name]) || 0) - (parseFloat(a[subject.name]) || 0)
-          )
-          const rank = sortedBySubject.findIndex(s => s['姓名'] === record['姓名']) + 1
-          const isEvaluate = subjectEvaluateStudents[subject.name]?.includes(record['姓名'])
           return (
-            <span style={{ color: isEvaluate ? '#ff4d4f' : 'inherit', fontWeight: isEvaluate ? 'bold' : 'normal' }}>
-              {rank}
+            <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+              {score}
             </span>
           )
         },
+        sorter: (a, b) => (parseFloat(b[subject.name]) || 0) - (parseFloat(a[subject.name]) || 0),
+        defaultSortOrder: 'ascend', // 默认降序排列
       },
     ]),
     {
@@ -187,10 +207,9 @@ function ClassPage() {
       dataIndex: 'totalScore',
       key: 'totalScore',
       width: 100,
-      render: (val, record) => {
-        const isEvaluate = totalEvaluateStudents.includes(record['姓名'])
+      render: (val) => {
         return (
-          <strong style={{ color: isEvaluate ? '#ff4d4f' : 'inherit' }}>
+          <strong style={{ color: '#000' }}>
             {val.toFixed(2)}
           </strong>
         )
@@ -256,6 +275,105 @@ function ClassPage() {
     },
   ]
 
+  const classOwnStandardColumns = [
+    {
+      title: '标准类型',
+      dataIndex: 'type',
+      key: 'type',
+    },
+    {
+      title: '标准分数',
+      dataIndex: 'score',
+      key: 'score',
+      render: (val) => <strong style={{ color: '#1890ff' }}>{val.toFixed(2)}</strong>,
+    },
+  ]
+
+  const classOwnSubjectStandardColumns = [
+    {
+      title: '学科',
+      dataIndex: 'subject',
+      key: 'subject',
+    },
+    {
+      title: '优秀率标准分',
+      dataIndex: 'excellentStandard',
+      key: 'excellentStandard',
+      render: (val) => val.toFixed(2),
+    },
+    {
+      title: '及格率标准分',
+      dataIndex: 'passStandard',
+      key: 'passStandard',
+      render: (val) => val.toFixed(2),
+    },
+    {
+      title: '综合率标准分',
+      dataIndex: 'comprehensiveStandard',
+      key: 'comprehensiveStandard',
+      render: (val) => val.toFixed(2),
+    },
+  ]
+
+  const classOwnRateColumns = [
+    {
+      title: '优秀率',
+      dataIndex: 'excellentRate',
+      key: 'excellentRate',
+      render: (val) => <strong style={{ color: '#52c41a' }}>{val}%</strong>,
+    },
+    {
+      title: '及格率',
+      dataIndex: 'passRate',
+      key: 'passRate',
+      render: (val) => <strong style={{ color: '#1890ff' }}>{val}%</strong>,
+    },
+    {
+      title: '综合率',
+      dataIndex: 'comprehensiveRate',
+      key: 'comprehensiveRate',
+      render: (val) => <strong style={{ color: '#faad14' }}>{val}%</strong>,
+    },
+    {
+      title: '三率之和',
+      dataIndex: 'totalRate',
+      key: 'totalRate',
+      render: (val) => <strong style={{ color: '#f5222d', fontSize: '16px' }}>{val}%</strong>,
+    },
+  ]
+
+  const classOwnSubjectRateColumns = [
+    {
+      title: '学科',
+      dataIndex: 'subject',
+      key: 'subject',
+    },
+    {
+      title: '优秀率',
+      dataIndex: 'excellentRate',
+      key: 'excellentRate',
+      render: (val) => <strong style={{ color: '#52c41a' }}>{val}%</strong>,
+    },
+    {
+      title: '及格率',
+      dataIndex: 'passRate',
+      key: 'passRate',
+      render: (val) => <strong style={{ color: '#1890ff' }}>{val}%</strong>,
+    },
+    {
+      title: '综合率',
+      dataIndex: 'comprehensiveRate',
+      key: 'comprehensiveRate',
+      render: (val) => <strong style={{ color: '#faad14' }}>{val}%</strong>,
+    },
+    {
+      title: '三率之和',
+      dataIndex: 'totalRate',
+      key: 'totalRate',
+      render: (val) => <strong style={{ color: '#f5222d' }}>{val}%</strong>,
+    },
+  ]
+
   const getClassRateData = () => {
     if (!classRates) return []
     return [
@@ -264,6 +382,36 @@ function ClassPage() {
       { type: '综合率', value: classRates.comprehensiveRate },
       { type: '三率之和', value: classRates.totalRate },
     ]
+  }
+
+  const getClassOwnStandardData = () => {
+    if (!classOwnStandards) return []
+    return [
+      { type: '优秀率计数标准分（前20%）', score: classOwnStandards.excellentStandard },
+      { type: '及格率计数标准分（总分60%）', score: classOwnStandards.passStandard },
+      { type: '综合率计数标准分（平均分）', score: classOwnStandards.comprehensiveStandard },
+    ]
+  }
+
+  const getClassOwnSubjectStandardData = () => {
+    if (!classOwnSubjectStandards) return []
+    return subjects.map(subject => ({
+      subject: subject.name,
+      ...classOwnSubjectStandards[subject.name]
+    }))
+  }
+
+  const getClassOwnRateData = () => {
+    if (!classOwnRates) return []
+    return [classOwnRates]
+  }
+
+  const getClassOwnSubjectRateData = () => {
+    if (!classOwnSubjectRates) return []
+    return subjects.map(subject => ({
+      subject: subject.name,
+      ...classOwnSubjectRates[subject.name]
+    }))
   }
 
   return (
@@ -299,15 +447,15 @@ function ClassPage() {
           </Select>
         </div>
 
-        {classStudents.length > 0 && classRates && (
+        {classStudents.length > 0 && classOwnStandards && (
           <div style={{ marginTop: 16 }}>
             <p style={{ marginBottom: 8 }}>
               班级总人数：<strong>{classStudents.length}</strong> 人
             </p>
             <p style={{ marginBottom: 0 }}>
-              总分参评人数：<strong style={{ color: '#ff4d4f' }}>{classRates.evaluateCount}</strong> 人
+              班级标准参评人数：<strong style={{ color: '#1890ff' }}>{classOwnStandards.evaluateCount}</strong> 人
               <span style={{ color: '#999', marginLeft: 8 }}>
-                （在全年级总分前90%的学生）
+                （本班总分前95%的学生）
               </span>
             </p>
           </div>
@@ -316,19 +464,38 @@ function ClassPage() {
 
       {classStudents.length > 0 ? (
         <>
-          <Card title="班级总分三率" style={{ marginBottom: 24 }}>
+          <Card title="本班总分三率标准分（本班前95%）" style={{ marginBottom: 24 }}>
             <Table
-              dataSource={getClassRateData()}
-              columns={classRateColumns}
+              dataSource={getClassOwnStandardData()}
+              columns={classOwnStandardColumns}
               pagination={false}
               rowKey="type"
             />
           </Card>
 
-          <Card title="班级各学科三率" style={{ marginBottom: 24 }}>
+          <Card title="本班各学科三率标准分（本班前95%）" style={{ marginBottom: 24 }}>
             <Table
-              dataSource={classSubjectRates}
-              columns={subjectRateColumns}
+              dataSource={getClassOwnSubjectStandardData()}
+              columns={classOwnSubjectStandardColumns}
+              pagination={false}
+              rowKey="subject"
+              scroll={{ x: 'max-content' }}
+            />
+          </Card>
+
+          <Card title="本班总分三率（基于本班标准分）" style={{ marginBottom: 24 }}>
+            <Table
+              dataSource={getClassOwnRateData()}
+              columns={classOwnRateColumns}
+              pagination={false}
+              rowKey={(record, index) => `class_own_rate_${index}`}
+            />
+          </Card>
+
+          <Card title="本班各学科三率（基于本班标准分）" style={{ marginBottom: 24 }}>
+            <Table
+              dataSource={getClassOwnSubjectRateData()}
+              columns={classOwnSubjectRateColumns}
               pagination={false}
               rowKey="subject"
               scroll={{ x: 'max-content' }}
@@ -336,25 +503,6 @@ function ClassPage() {
           </Card>
 
           <Card title="班级学生成绩表">
-            <div style={{ marginBottom: 16, padding: '12px', background: '#f0f2f5', borderRadius: 4 }}>
-              <p style={{ margin: 0, color: '#666' }}>
-                <strong>说明：</strong>
-                <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>红色数字</span> 表示该学生在该项目中属于参评学生（全年级前90%）
-              </p>
-              <p style={{ margin: '8px 0 0 0', color: '#666' }}>
-                • <strong>总分</strong>：红色表示在全年级总分排名前90%
-              </p>
-              <p style={{ margin: '4px 0 0 0', color: '#666' }}>
-                • <strong>各学科分数和降序</strong>：红色表示在该学科全年级排名前90%
-              </p>
-              {/* 调试信息 */}
-              {totalEvaluateStudents.length > 0 && (
-                <p style={{ margin: '8px 0 0 0', color: '#999', fontSize: '12px' }}>
-                  调试：总分参评学生 {totalEvaluateStudents.length} 人：{totalEvaluateStudents.slice(0, 5).join('、')}
-                  {totalEvaluateStudents.length > 5 && '...'}
-                </p>
-              )}
-            </div>
             <Table
               dataSource={classStudents}
               columns={studentColumns}

@@ -4,6 +4,8 @@ import { getAllGrades, getRecordsByGradeClass } from '../utils/storage'
 import {
   calculateGradeStandards,
   calculateSubjectStandards,
+  calculateGradeRates,
+  calculateGradeSubjectRates,
   addRankings
 } from '../utils/calculator'
 
@@ -16,6 +18,8 @@ function GradePage() {
   const [subjects, setSubjects] = useState([])
   const [gradeStandards, setGradeStandards] = useState(null)
   const [subjectStandards, setSubjectStandards] = useState(null)
+  const [gradeRates, setGradeRates] = useState(null)
+  const [gradeSubjectRates, setGradeSubjectRates] = useState(null)
 
   useEffect(() => {
     const loadGrades = async () => {
@@ -75,6 +79,14 @@ function GradePage() {
     // 计算学科三率标准分
     const subjectStd = calculateSubjectStandards(rankedStudents, latestRecord.subjects)
     setSubjectStandards(subjectStd)
+
+    // 计算年级总分三率
+    const gradeRts = calculateGradeRates(rankedStudents, standards)
+    setGradeRates(gradeRts)
+
+    // 计算年级各学科三率
+    const subjectRts = calculateGradeSubjectRates(rankedStudents, latestRecord.subjects, subjectStd)
+    setGradeSubjectRates(subjectRts)
   }
 
   const studentColumns = [
@@ -105,19 +117,43 @@ function GradePage() {
       key: '姓名',
       width: 100,
     },
-    ...subjects.map(subject => ({
-      title: subject.name,
-      dataIndex: subject.name,
-      key: subject.name,
-      width: 80,
-    })),
+    // 为每个学科生成两列：原始分数和降序
+    ...subjects.flatMap(subject => [
+      {
+        title: subject.name,
+        dataIndex: subject.name,
+        key: subject.name,
+        width: 80,
+        render: (val) => (
+          <span style={{ color: '#000' }}>
+            {val}
+          </span>
+        ),
+      },
+      {
+        title: `${subject.name}降序`,
+        key: `${subject.name}_desc`,
+        width: 100,
+        render: (_, record) => {
+          // 显示该学科的分数，用红色字体
+          const score = parseFloat(record[subject.name]) || 0
+          return (
+            <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+              {score}
+            </span>
+          )
+        },
+        sorter: (a, b) => (parseFloat(b[subject.name]) || 0) - (parseFloat(a[subject.name]) || 0),
+        defaultSortOrder: 'ascend', // 默认降序排列
+      },
+    ]),
     {
       title: '总分',
       dataIndex: 'totalScore',
       key: 'totalScore',
       width: 100,
       sorter: (a, b) => a.totalScore - b.totalScore,
-      render: (val) => <strong>{val.toFixed(2)}</strong>,
+      render: (val) => <strong style={{ color: '#000' }}>{val.toFixed(2)}</strong>,
     },
   ]
 
@@ -161,6 +197,65 @@ function GradePage() {
     },
   ]
 
+  const gradeRateColumns = [
+    {
+      title: '优秀率',
+      dataIndex: 'excellentRate',
+      key: 'excellentRate',
+      render: (val) => <strong style={{ color: '#52c41a' }}>{val}%</strong>,
+    },
+    {
+      title: '及格率',
+      dataIndex: 'passRate',
+      key: 'passRate',
+      render: (val) => <strong style={{ color: '#1890ff' }}>{val}%</strong>,
+    },
+    {
+      title: '综合率',
+      dataIndex: 'comprehensiveRate',
+      key: 'comprehensiveRate',
+      render: (val) => <strong style={{ color: '#faad14' }}>{val}%</strong>,
+    },
+    {
+      title: '三率之和',
+      dataIndex: 'totalRate',
+      key: 'totalRate',
+      render: (val) => <strong style={{ color: '#f5222d', fontSize: '16px' }}>{val}%</strong>,
+    },
+  ]
+
+  const subjectRateColumns = [
+    {
+      title: '学科',
+      dataIndex: 'subject',
+      key: 'subject',
+    },
+    {
+      title: '优秀率',
+      dataIndex: 'excellentRate',
+      key: 'excellentRate',
+      render: (val) => <strong style={{ color: '#52c41a' }}>{val}%</strong>,
+    },
+    {
+      title: '及格率',
+      dataIndex: 'passRate',
+      key: 'passRate',
+      render: (val) => <strong style={{ color: '#1890ff' }}>{val}%</strong>,
+    },
+    {
+      title: '综合率',
+      dataIndex: 'comprehensiveRate',
+      key: 'comprehensiveRate',
+      render: (val) => <strong style={{ color: '#faad14' }}>{val}%</strong>,
+    },
+    {
+      title: '三率之和',
+      dataIndex: 'totalRate',
+      key: 'totalRate',
+      render: (val) => <strong style={{ color: '#f5222d' }}>{val}%</strong>,
+    },
+  ]
+
   const getStandardData = () => {
     if (!gradeStandards) return []
     return [
@@ -175,6 +270,19 @@ function GradePage() {
     return subjects.map(subject => ({
       subject: subject.name,
       ...subjectStandards[subject.name]
+    }))
+  }
+
+  const getGradeRateData = () => {
+    if (!gradeRates) return []
+    return [gradeRates]
+  }
+
+  const getSubjectRateData = () => {
+    if (!gradeSubjectRates) return []
+    return subjects.map(subject => ({
+      subject: subject.name,
+      ...gradeSubjectRates[subject.name]
     }))
   }
 
@@ -206,6 +314,25 @@ function GradePage() {
 
       {allStudents.length > 0 ? (
         <>
+          <Card title="年级总分三率" style={{ marginBottom: 24 }}>
+            <Table
+              dataSource={getGradeRateData()}
+              columns={gradeRateColumns}
+              pagination={false}
+              rowKey={(record, index) => `grade_rate_${index}`}
+            />
+          </Card>
+
+          <Card title="年级各学科三率" style={{ marginBottom: 24 }}>
+            <Table
+              dataSource={getSubjectRateData()}
+              columns={subjectRateColumns}
+              pagination={false}
+              rowKey="subject"
+              scroll={{ x: 'max-content' }}
+            />
+          </Card>
+
           <Card title="年级总分三率标准分" style={{ marginBottom: 24 }}>
             <Table
               dataSource={getStandardData()}

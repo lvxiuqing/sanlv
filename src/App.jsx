@@ -44,7 +44,7 @@ function App() {
     {
       key: '/history',
       icon: <HistoryOutlined />,
-      label: <Link to="/history">历史对比</Link>,
+      label: <Link to="/history">学生成绩变化</Link>,
     },
     {
       key: '/three-rates-history',
