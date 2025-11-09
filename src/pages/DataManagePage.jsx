@@ -5,7 +5,7 @@ import { getAllData, clearAllData } from '../utils/storage'
 
 const { confirm } = Modal
 
-function DataManagePage() {
+function DataManagePage({ userInfo }) {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(false)
 

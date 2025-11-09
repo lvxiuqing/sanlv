@@ -11,7 +11,7 @@ import {
 
 const { Option } = Select
 
-function GradePage() {
+function GradePage({ userInfo }) {
   const [grades, setGrades] = useState([])
   const [selectedGrade, setSelectedGrade] = useState(null)
   const [allStudents, setAllStudents] = useState([])
@@ -25,7 +25,11 @@ function GradePage() {
     const loadGrades = async () => {
       const allGrades = await getAllGrades()
       setGrades(allGrades)
-      if (allGrades.length > 0) {
+      
+      // 如果是班级老师，只加载自己年级的数据
+      if (userInfo.role === 'teacher') {
+        setSelectedGrade(userInfo.grade)
+      } else if (allGrades.length > 0) {
         setSelectedGrade(allGrades[0])
       }
     }
@@ -39,7 +43,11 @@ function GradePage() {
   }, [selectedGrade])
 
   const loadGradeData = async (grade) => {
-    const records = await getRecordsByGradeClass(grade)
+    // 将中文年级转换为数字
+    const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+    const gradeNumber = typeof grade === 'string' && gradeMap[grade] ? gradeMap[grade] : parseInt(grade) || grade
+
+    const records = await getRecordsByGradeClass(gradeNumber)
     
     if (records.length === 0) {
       message.warning('该年级暂无数据')
@@ -289,6 +297,14 @@ function GradePage() {
   return (
     <div>
       <Card title="年级数据分析" style={{ marginBottom: 24 }}>
+        {userInfo.role === 'teacher' && (
+          <div style={{ marginBottom: 16, padding: 12, background: '#fff7e6', borderRadius: 4, border: '1px solid #ffd591' }}>
+            <p style={{ margin: 0, color: '#fa8c16' }}>
+              <strong>提示：</strong>当前为班级老师账号，年级数据页面可查看所有年级的汇总数据
+            </p>
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
           <span style={{ marginRight: 16 }}>选择年级：</span>
           <Select
@@ -296,6 +312,7 @@ function GradePage() {
             value={selectedGrade}
             onChange={setSelectedGrade}
             placeholder="请选择年级"
+            disabled={userInfo.role === 'teacher'}
           >
             {grades.map(grade => (
               <Option key={grade} value={grade}>

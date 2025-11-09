@@ -585,3 +585,168 @@ export const addRankings = (allStudents) => {
   return sortedStudents
 }
 
+// ========== 新的计算逻辑：基于年级95%的标准分 ==========
+
+// 计算年级三率标准分（基于年级95%）
+export const calculateGradeStandards95 = (allStudents, subjects) => {
+  // 第一步：将年级所有学生总分成绩按照从高到低的顺序排列
+  const sortedByTotal = [...allStudents]
+    .sort((a, b) => b.totalScore - a.totalScore)
+  
+  // 第二步：参评人数取总人数的95%
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  // 第三步：优秀率标准分 - 取参评人数的第前20%名学生分数
+  const excellentIndex = Math.floor(evaluateCount * 0.2) - 1
+  const excellentStandard = excellentIndex >= 0 
+    ? evaluateStudents[excellentIndex].totalScore 
+    : evaluateStudents[0]?.totalScore || 0
+  
+  // 及格率标准分：取学科总分的60%的分数
+  const totalPossibleScore = subjects.reduce((sum, s) => sum + s.totalScore, 0)
+  const passStandard = totalPossibleScore * 0.6
+  
+  // 综合率标准分：取全部参评学生的总分平均分
+  const avgScore = evaluateStudents.reduce((sum, s) => sum + s.totalScore, 0) / evaluateCount
+  const comprehensiveStandard = avgScore
+  
+  return {
+    excellentStandard,
+    passStandard,
+    comprehensiveStandard,
+    evaluateCount
+  }
+}
+
+// 计算年级各学科三率标准分（基于年级95%）
+export const calculateSubjectStandards95 = (allStudents, subjects) => {
+  const subjectStandards = {}
+  
+  // 参评人数取总人数的95%（按总分排序）
+  const sortedByTotal = [...allStudents]
+    .sort((a, b) => b.totalScore - a.totalScore)
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  subjects.forEach(subject => {
+    // 在参评学生中，按该学科分数从高到低排序
+    const sortedBySubject = [...evaluateStudents]
+      .sort((a, b) => {
+        const scoreA = parseFloat(a[subject.name]) || 0
+        const scoreB = parseFloat(b[subject.name]) || 0
+        return scoreB - scoreA
+      })
+    
+    // 优秀率标准分：取参评人数的第前20%名学生分数
+    const excellentIndex = Math.floor(evaluateCount * 0.2) - 1
+    const excellentStandard = excellentIndex >= 0
+      ? (parseFloat(sortedBySubject[excellentIndex][subject.name]) || 0)
+      : (parseFloat(sortedBySubject[0]?.[subject.name]) || 0)
+    
+    // 及格率标准分：取学科总分的60%
+    const passStandard = subject.totalScore * 0.6
+    
+    // 综合率标准分：取参评学生该学科的平均分
+    const totalScore = evaluateStudents.reduce((sum, s) => 
+      sum + (parseFloat(s[subject.name]) || 0), 0)
+    const comprehensiveStandard = totalScore / evaluateCount
+    
+    subjectStandards[subject.name] = {
+      excellentStandard,
+      passStandard,
+      comprehensiveStandard,
+      evaluateCount
+    }
+  })
+  
+  return subjectStandards
+}
+
+// 计算班级总分三率（基于年级95%标准分，本班95%参评）
+export const calculateClassRates95 = (classStudents, gradeStandards) => {
+  // 将本班学生按总分从高到低排序
+  const sortedByTotal = [...classStudents]
+    .sort((a, b) => b.totalScore - a.totalScore)
+  
+  // 本班参评人数取本班总人数的95%
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  // 计算优秀率：本班参评学生中总分 >= 年级优秀标准分的人数
+  const excellentCount = evaluateStudents.filter(
+    s => s.totalScore >= gradeStandards.excellentStandard
+  ).length
+  const excellentRate = (excellentCount / evaluateCount * 100).toFixed(2)
+  
+  // 计算及格率
+  const passCount = evaluateStudents.filter(
+    s => s.totalScore >= gradeStandards.passStandard
+  ).length
+  const passRate = (passCount / evaluateCount * 100).toFixed(2)
+  
+  // 计算综合率
+  const comprehensiveCount = evaluateStudents.filter(
+    s => s.totalScore >= gradeStandards.comprehensiveStandard
+  ).length
+  const comprehensiveRate = (comprehensiveCount / evaluateCount * 100).toFixed(2)
+  
+  // 三率之和
+  const totalRate = (parseFloat(excellentRate) + parseFloat(passRate) + parseFloat(comprehensiveRate)).toFixed(2)
+  
+  return {
+    excellentRate,
+    passRate,
+    comprehensiveRate,
+    totalRate,
+    evaluateCount
+  }
+}
+
+// 计算班级各学科三率（基于年级95%标准分，本班95%参评）
+export const calculateClassSubjectRates95 = (classStudents, subjects, subjectStandards) => {
+  // 将本班学生按总分从高到低排序
+  const sortedByTotal = [...classStudents]
+    .sort((a, b) => b.totalScore - a.totalScore)
+  
+  // 本班参评人数取本班总人数的95%
+  const evaluateCount = Math.floor(sortedByTotal.length * 0.95)
+  const evaluateStudents = sortedByTotal.slice(0, evaluateCount)
+  
+  const subjectRates = subjects.map(subject => {
+    const standards = subjectStandards[subject.name]
+    
+    // 计算优秀率：本班参评学生中该学科分数 >= 年级优秀标准分的人数
+    const excellentCount = evaluateStudents.filter(
+      s => (parseFloat(s[subject.name]) || 0) >= standards.excellentStandard
+    ).length
+    const excellentRate = (excellentCount / evaluateCount * 100).toFixed(2)
+    
+    // 计算及格率
+    const passCount = evaluateStudents.filter(
+      s => (parseFloat(s[subject.name]) || 0) >= standards.passStandard
+    ).length
+    const passRate = (passCount / evaluateCount * 100).toFixed(2)
+    
+    // 计算综合率
+    const comprehensiveCount = evaluateStudents.filter(
+      s => (parseFloat(s[subject.name]) || 0) >= standards.comprehensiveStandard
+    ).length
+    const comprehensiveRate = (comprehensiveCount / evaluateCount * 100).toFixed(2)
+    
+    // 三率之和
+    const totalRate = (parseFloat(excellentRate) + parseFloat(passRate) + parseFloat(comprehensiveRate)).toFixed(2)
+    
+    return {
+      subject: subject.name,
+      excellentRate,
+      passRate,
+      comprehensiveRate,
+      totalRate,
+      evaluateCount
+    }
+  })
+  
+  return subjectRates
+}
+

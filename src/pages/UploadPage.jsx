@@ -14,10 +14,11 @@ import {
 
 const { Dragger } = Upload
 
-function UploadPage() {
+function UploadPage({ userInfo }) {
   const [form] = Form.useForm()
-  const [grade, setGrade] = useState(null)
-  const [classNum, setClassNum] = useState(null)
+  // 如果是班级老师，自动设置年级和班级
+  const [grade, setGrade] = useState(userInfo.role === 'teacher' ? userInfo.grade : null)
+  const [classNum, setClassNum] = useState(userInfo.role === 'teacher' ? userInfo.class : null)
   const [subjects, setSubjects] = useState([])
   const [students, setStudents] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -90,16 +91,20 @@ function UploadPage() {
     setUploading(true)
 
     try {
+      // 将中文年级转换为数字（数据库需要整数）
+      const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+      const gradeNumber = typeof grade === 'string' && gradeMap[grade] ? gradeMap[grade] : parseInt(grade) || grade
+
       // 计算总分
       const studentsWithTotal = students.map(student => ({
         ...student,
-        grade,
+        grade: gradeNumber,
         class: classNum,
         totalScore: calculateTotalScore(student, subjects)
       }))
 
       // 获取该年级的所有现有记录（用于计算三率）
-      const existingRecords = await getRecordsByGradeClass(grade)
+      const existingRecords = await getRecordsByGradeClass(gradeNumber)
       
       // 合并当前上传的数据和现有数据
       let allStudentsData = [...studentsWithTotal]
@@ -179,7 +184,7 @@ function UploadPage() {
 
       // 保存记录（包含三率数据）
       const record = {
-        grade,
+        grade: gradeNumber,  // 使用数字年级
         class: classNum,
         subjects,
         students: studentsWithTotal,
@@ -188,14 +193,17 @@ function UploadPage() {
       }
 
       await saveRecord(record)
-      await saveSubjects(grade, classNum, subjects)
+      await saveSubjects(gradeNumber, classNum, subjects)
 
       message.success('数据保存成功！' + (classRatesData ? '已自动计算三率数据。' : ''))
       
       // 重置表单
       form.resetFields()
-      setGrade(null)
-      setClassNum(null)
+      // 如果是班级老师，保持年级班级不变；如果是管理员，清空
+      if (userInfo.role !== 'teacher') {
+        setGrade(null)
+        setClassNum(null)
+      }
       setSubjects([])
       setStudents([])
     } catch (error) {
@@ -229,6 +237,15 @@ function UploadPage() {
   return (
     <div>
       <Card title="成绩上传" style={{ marginBottom: 24 }}>
+        {userInfo.role === 'teacher' && (
+          <div style={{ marginBottom: 16, padding: 12, background: '#e6f7ff', borderRadius: 4 }}>
+            <p style={{ margin: 0, color: '#1890ff' }}>
+              <strong>当前登录：</strong>{userInfo.grade}年级{userInfo.class}班老师
+              （只能上传本班成绩）
+            </p>
+          </div>
+        )}
+
         <Form form={form} layout="inline" style={{ marginBottom: 24 }}>
           <Form.Item label="年级" required>
             <InputNumber
@@ -238,6 +255,7 @@ function UploadPage() {
               value={grade}
               onChange={setGrade}
               addonAfter="年级"
+              disabled={userInfo.role === 'teacher'}
             />
           </Form.Item>
           
@@ -249,6 +267,7 @@ function UploadPage() {
               value={classNum}
               onChange={setClassNum}
               addonAfter="班"
+              disabled={userInfo.role === 'teacher'}
             />
           </Form.Item>
         </Form>

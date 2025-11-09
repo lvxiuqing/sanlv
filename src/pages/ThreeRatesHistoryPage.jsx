@@ -11,11 +11,11 @@ import {
 
 const { Option } = Select
 
-function ThreeRatesHistoryPage() {
+function ThreeRatesHistoryPage({ userInfo }) {
   const [grades, setGrades] = useState([])
-  const [selectedGrade, setSelectedGrade] = useState(null)
+  const [selectedGrade, setSelectedGrade] = useState(userInfo.role === 'teacher' ? userInfo.grade : null)
   const [classes, setClasses] = useState([])
-  const [selectedClass, setSelectedClass] = useState(null)
+  const [selectedClass, setSelectedClass] = useState(userInfo.role === 'teacher' ? userInfo.class : null)
   const [historyData, setHistoryData] = useState([])
   const [subjectNames, setSubjectNames] = useState([])
   const [subjectHistoryData, setSubjectHistoryData] = useState({})
@@ -34,15 +34,27 @@ function ThreeRatesHistoryPage() {
   useEffect(() => {
     const loadClasses = async () => {
       if (selectedGrade) {
-        const gradeClasses = await getClassesByGrade(selectedGrade)
+        // 将中文年级转换为数字
+        const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+        const gradeNumber = typeof selectedGrade === 'string' && gradeMap[selectedGrade] ? gradeMap[selectedGrade] : parseInt(selectedGrade) || selectedGrade
+        
+        const gradeClasses = await getClassesByGrade(gradeNumber)
+        
+        // 如果是班级老师，只显示自己的班级
+        if (userInfo.role === 'teacher') {
+          const myClass = gradeClasses.filter(c => c === userInfo.class)
+          setClasses(myClass)
+          setSelectedClass(userInfo.class)
+        } else {
         setClasses(gradeClasses)
         if (gradeClasses.length > 0) {
           setSelectedClass(gradeClasses[0])
+          }
         }
       }
     }
     loadClasses()
-  }, [selectedGrade])
+  }, [selectedGrade, userInfo])
 
   useEffect(() => {
     if (selectedGrade && selectedClass) {
@@ -51,7 +63,11 @@ function ThreeRatesHistoryPage() {
   }, [selectedGrade, selectedClass])
 
   const loadThreeRatesHistory = async (grade, classNum) => {
-    const records = await getRecordsByGradeClass(grade, classNum)
+    // 将中文年级转换为数字
+    const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+    const gradeNumber = typeof grade === 'string' && gradeMap[grade] ? gradeMap[grade] : parseInt(grade) || grade
+    
+    const records = await getRecordsByGradeClass(gradeNumber, classNum)
     
     if (records.length === 0) {
       message.warning('暂无历史数据')
@@ -232,10 +248,10 @@ function ThreeRatesHistoryPage() {
         render: (val) => val !== undefined ? `${val.toFixed(2)}%` : '-',
       },
       {
-        title: `${subject}三率之和`,
-        dataIndex: `${subject}_totalRate`,
-        key: `${subject}_totalRate`,
-        width: 120,
+      title: `${subject}三率之和`,
+      dataIndex: `${subject}_totalRate`,
+      key: `${subject}_totalRate`,
+      width: 120,
         render: (val) => val !== undefined ? <strong>{val.toFixed(2)}%</strong> : '-',
       },
     ]),
@@ -244,6 +260,15 @@ function ThreeRatesHistoryPage() {
   return (
     <div>
       <Card title="班级三率历史对比" style={{ marginBottom: 24 }}>
+        {userInfo.role === 'teacher' && (
+          <div style={{ marginBottom: 16, padding: 12, background: '#e6f7ff', borderRadius: 4 }}>
+            <p style={{ margin: 0, color: '#1890ff' }}>
+              <strong>当前登录：</strong>{userInfo.grade}年级{userInfo.class}班老师
+              （只能查看本班三率历史）
+            </p>
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
           <span style={{ marginRight: 16 }}>选择年级：</span>
           <Select
@@ -251,6 +276,7 @@ function ThreeRatesHistoryPage() {
             value={selectedGrade}
             onChange={setSelectedGrade}
             placeholder="请选择年级"
+            disabled={userInfo.role === 'teacher'}
           >
             {grades.map(grade => (
               <Option key={grade} value={grade}>
@@ -265,6 +291,7 @@ function ThreeRatesHistoryPage() {
             value={selectedClass}
             onChange={setSelectedClass}
             placeholder="请选择班级"
+            disabled={userInfo.role === 'teacher'}
           >
             {classes.map(classNum => (
               <Option key={classNum} value={classNum}>
@@ -358,9 +385,9 @@ function ThreeRatesHistoryPage() {
                     strokeWidth={2}
                     name="综合率"
                   />
-                  <Line
-                    type="monotone"
-                    dataKey={`${subject}_totalRate`}
+                      <Line
+                        type="monotone"
+                        dataKey={`${subject}_totalRate`}
                     stroke="#f5222d"
                     strokeWidth={3}
                     name="三率之和"

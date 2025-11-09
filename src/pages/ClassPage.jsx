@@ -10,29 +10,29 @@ import {
   calculateClassOwnSubjectStandards,
   calculateClassOwnRates,
   calculateClassOwnSubjectRates,
+  calculateGradeStandards95,
+  calculateSubjectStandards95,
+  calculateClassRates95,
+  calculateClassSubjectRates95,
   addRankings
 } from '../utils/calculator'
 
 const { Option } = Select
 
-function ClassPage() {
+function ClassPage({ userInfo }) {
   const [grades, setGrades] = useState([])
-  const [selectedGrade, setSelectedGrade] = useState(null)
+  // 如果是班级老师，自动设置年级和班级
+  const [selectedGrade, setSelectedGrade] = useState(userInfo.role === 'teacher' ? userInfo.grade : null)
   const [classes, setClasses] = useState([])
-  const [selectedClass, setSelectedClass] = useState(null)
+  const [selectedClass, setSelectedClass] = useState(userInfo.role === 'teacher' ? userInfo.class : null)
   const [classStudents, setClassStudents] = useState([])
   const [subjects, setSubjects] = useState([])
-  const [gradeStandards, setGradeStandards] = useState(null)
-  const [subjectStandards, setSubjectStandards] = useState(null)
-  const [classRates, setClassRates] = useState(null)
-  const [classSubjectRates, setClassSubjectRates] = useState([])
-  const [allStudents, setAllStudents] = useState([])
-  const [totalEvaluateStudents, setTotalEvaluateStudents] = useState([])
-  const [subjectEvaluateStudents, setSubjectEvaluateStudents] = useState({})
-  const [classOwnStandards, setClassOwnStandards] = useState(null)
-  const [classOwnSubjectStandards, setClassOwnSubjectStandards] = useState(null)
-  const [classOwnRates, setClassOwnRates] = useState(null)
-  const [classOwnSubjectRates, setClassOwnSubjectRates] = useState(null)
+  // 基于年级95%的标准分
+  const [gradeStandards95, setGradeStandards95] = useState(null)
+  const [subjectStandards95, setSubjectStandards95] = useState(null)
+  // 基于本班95%计算的三率（使用年级95%标准分）
+  const [classRates95, setClassRates95] = useState(null)
+  const [classSubjectRates95, setClassSubjectRates95] = useState([])
 
   useEffect(() => {
     const loadGrades = async () => {
@@ -48,15 +48,28 @@ function ClassPage() {
   useEffect(() => {
     const loadClasses = async () => {
       if (selectedGrade) {
-        const gradeClasses = await getClassesByGrade(selectedGrade)
-        setClasses(gradeClasses)
-        if (gradeClasses.length > 0) {
-          setSelectedClass(gradeClasses[0])
+        // 将中文年级转换为数字
+        const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+        const gradeNumber = typeof selectedGrade === 'string' && gradeMap[selectedGrade] ? gradeMap[selectedGrade] : parseInt(selectedGrade) || selectedGrade
+        
+        const gradeClasses = await getClassesByGrade(gradeNumber)
+        
+        // 如果是班级老师，只显示自己的班级
+        if (userInfo.role === 'teacher') {
+          const myClass = gradeClasses.filter(c => c === userInfo.class)
+          setClasses(myClass)
+          setSelectedClass(userInfo.class)
+        } else {
+          // 管理员显示所有班级
+          setClasses(gradeClasses)
+          if (gradeClasses.length > 0) {
+            setSelectedClass(gradeClasses[0])
+          }
         }
       }
     }
     loadClasses()
-  }, [selectedGrade])
+  }, [selectedGrade, userInfo])
 
   useEffect(() => {
     if (selectedGrade && selectedClass) {
@@ -65,8 +78,12 @@ function ClassPage() {
   }, [selectedGrade, selectedClass])
 
   const loadClassData = async (grade, classNum) => {
+    // 将中文年级转换为数字
+    const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+    const gradeNumber = typeof grade === 'string' && gradeMap[grade] ? gradeMap[grade] : parseInt(grade) || grade
+
     // 获取该班级的记录
-    const classRecords = await getRecordsByGradeClass(grade, classNum)
+    const classRecords = await getRecordsByGradeClass(gradeNumber, classNum)
     
     if (classRecords.length === 0) {
       message.warning('该班级暂无数据')
@@ -77,8 +94,8 @@ function ClassPage() {
     const latestRecord = classRecords[0] // 已经按时间降序排列
     setSubjects(latestRecord.subjects)
 
-    // 获取年级所有班级的最新记录（用于计算标准分）
-    const allGradeRecords = await getRecordsByGradeClass(grade)
+    // 获取年级所有班级的最新记录（用于计算年级标准分）
+    const allGradeRecords = await getRecordsByGradeClass(gradeNumber)
     
     // 只使用最新一次考试的数据：找出每个班级的最新记录
     const latestRecordsByClass = {}
@@ -96,54 +113,25 @@ function ClassPage() {
       allStudentsData = allStudentsData.concat(record.students)
     })
 
-    // 计算年级标准分
-    const standards = calculateGradeStandards(allStudentsData, latestRecord.subjects)
-    setGradeStandards(standards)
+    // 🆕 计算年级标准分（基于年级95%）
+    const gradeStd95 = calculateGradeStandards95(allStudentsData, latestRecord.subjects)
+    setGradeStandards95(gradeStd95)
 
-    const subjectStd = calculateSubjectStandards(allStudentsData, latestRecord.subjects)
-    setSubjectStandards(subjectStd)
+    const subjectStd95 = calculateSubjectStandards95(allStudentsData, latestRecord.subjects)
+    setSubjectStandards95(subjectStd95)
 
     // 添加排名
     const rankedStudents = addRankings(allStudentsData)
-    setAllStudents(rankedStudents) // 保存全年级学生数据
-    
     const classStudentsData = rankedStudents.filter(s => s.class === classNum)
     setClassStudents(classStudentsData)
 
-    // 计算班级总分三率（使用新的修正版本）
-    const rates = calculateClassRates(classStudentsData, standards, rankedStudents)
-    setClassRates(rates)
-    setTotalEvaluateStudents(rates.evaluateStudents) // 保存总分参评学生名单
+    // 🆕 计算班级三率（基于本班95%参评，使用年级95%标准分）
+    const classRts95 = calculateClassRates95(classStudentsData, gradeStd95)
+    setClassRates95(classRts95)
 
-    // 计算班级各学科三率（使用新的修正版本）
-    const subjectEvaluateMap = {}
-    const subjectRates = latestRecord.subjects.map(subject => {
-      const rates = calculateClassSubjectRates(classStudentsData, subject.name, subjectStd, rankedStudents)
-      subjectEvaluateMap[subject.name] = rates.evaluateStudents // 保存各学科参评学生名单
-      return {
-        subject: subject.name,
-        ...rates,
-        evaluateCount: rates.evaluateCount
-      }
-    })
-    setClassSubjectRates(subjectRates)
-    setSubjectEvaluateStudents(subjectEvaluateMap)
-
-    // 计算班级自己的总分三率标准分
-    const classOwnStd = calculateClassOwnStandards(classStudentsData, latestRecord.subjects)
-    setClassOwnStandards(classOwnStd)
-
-    // 计算班级自己的各学科三率标准分
-    const classOwnSubjectStd = calculateClassOwnSubjectStandards(classStudentsData, latestRecord.subjects)
-    setClassOwnSubjectStandards(classOwnSubjectStd)
-
-    // 计算班级自己的总分三率
-    const classOwnRts = calculateClassOwnRates(classStudentsData, classOwnStd)
-    setClassOwnRates(classOwnRts)
-
-    // 计算班级自己的各学科三率
-    const classOwnSubjectRts = calculateClassOwnSubjectRates(classStudentsData, latestRecord.subjects, classOwnSubjectStd)
-    setClassOwnSubjectRates(classOwnSubjectRts)
+    // 🆕 计算班级各学科三率（基于本班95%参评，使用年级95%标准分）
+    const classSubjectRts95 = calculateClassSubjectRates95(classStudentsData, latestRecord.subjects, subjectStd95)
+    setClassSubjectRates95(classSubjectRts95)
   }
 
   // 动态生成学生成绩表列（包含原始分数和降序）
@@ -215,67 +203,10 @@ function ClassPage() {
         )
       },
     },
-  ], [subjects, subjectEvaluateStudents, totalEvaluateStudents, allStudents])
+  ], [subjects])
 
-  const classRateColumns = [
-    {
-      title: '指标',
-      dataIndex: 'type',
-      key: 'type',
-    },
-    {
-      title: '数值',
-      dataIndex: 'value',
-      key: 'value',
-      render: (val) => <strong style={{ color: '#52c41a' }}>{val}%</strong>,
-    },
-  ]
-
-  const subjectRateColumns = [
-    {
-      title: '学科',
-      dataIndex: 'subject',
-      key: 'subject',
-      width: 100,
-    },
-    {
-      title: '参评人数',
-      dataIndex: 'evaluateCount',
-      key: 'evaluateCount',
-      width: 100,
-      render: (val) => <strong>{val}</strong>,
-    },
-    {
-      title: '优秀率',
-      dataIndex: 'excellentRate',
-      key: 'excellentRate',
-      width: 100,
-      render: (val) => `${val}%`,
-    },
-    {
-      title: '及格率',
-      dataIndex: 'passRate',
-      key: 'passRate',
-      width: 100,
-      render: (val) => `${val}%`,
-    },
-    {
-      title: '综合率',
-      dataIndex: 'comprehensiveRate',
-      key: 'comprehensiveRate',
-      width: 100,
-      render: (val) => `${val}%`,
-    },
-    {
-      title: '三率之和',
-      dataIndex: 'totalRate',
-      key: 'totalRate',
-      width: 120,
-      render: (val) => <strong style={{ color: '#1890ff' }}>{val}%</strong>,
-    },
-  ]
-
-  const classOwnStandardColumns = [
+  // 年级总分标准分表格列（基于年级95%）
+  const gradeStandardColumns = [
     {
       title: '标准类型',
       dataIndex: 'type',
@@ -289,7 +220,8 @@ function ClassPage() {
     },
   ]
 
-  const classOwnSubjectStandardColumns = [
+  // 年级各学科标准分表格列（基于年级95%）
+  const gradeSubjectStandardColumns = [
     {
       title: '学科',
       dataIndex: 'subject',
@@ -315,7 +247,8 @@ function ClassPage() {
     },
   ]
 
-  const classOwnRateColumns = [
+  // 班级总分三率表格列
+  const classRateColumns = [
     {
       title: '优秀率',
       dataIndex: 'excellentRate',
@@ -342,7 +275,8 @@ function ClassPage() {
     },
   ]
 
-  const classOwnSubjectRateColumns = [
+  // 班级各学科三率表格列
+  const classSubjectRateColumns = [
     {
       title: '学科',
       dataIndex: 'subject',
@@ -374,49 +308,49 @@ function ClassPage() {
     },
   ]
 
+  // 获取年级标准分数据（基于年级95%）
+  const getGradeStandardData = () => {
+    if (!gradeStandards95) return []
+    return [
+      { type: '优秀率标准分（前20%）', score: gradeStandards95.excellentStandard },
+      { type: '及格率标准分（总分60%）', score: gradeStandards95.passStandard },
+      { type: '综合率标准分（平均分）', score: gradeStandards95.comprehensiveStandard },
+    ]
+  }
+
+  // 获取年级各学科标准分数据（基于年级95%）
+  const getGradeSubjectStandardData = () => {
+    if (!subjectStandards95) return []
+    return subjects.map(subject => ({
+      subject: subject.name,
+      ...subjectStandards95[subject.name]
+    }))
+  }
+
+  // 获取班级总分三率数据
   const getClassRateData = () => {
-    if (!classRates) return []
-    return [
-      { type: '优秀率', value: classRates.excellentRate },
-      { type: '及格率', value: classRates.passRate },
-      { type: '综合率', value: classRates.comprehensiveRate },
-      { type: '三率之和', value: classRates.totalRate },
-    ]
+    if (!classRates95) return []
+    return [classRates95]
   }
 
-  const getClassOwnStandardData = () => {
-    if (!classOwnStandards) return []
-    return [
-      { type: '优秀率计数标准分（前20%）', score: classOwnStandards.excellentStandard },
-      { type: '及格率计数标准分（总分60%）', score: classOwnStandards.passStandard },
-      { type: '综合率计数标准分（平均分）', score: classOwnStandards.comprehensiveStandard },
-    ]
-  }
-
-  const getClassOwnSubjectStandardData = () => {
-    if (!classOwnSubjectStandards) return []
-    return subjects.map(subject => ({
-      subject: subject.name,
-      ...classOwnSubjectStandards[subject.name]
-    }))
-  }
-
-  const getClassOwnRateData = () => {
-    if (!classOwnRates) return []
-    return [classOwnRates]
-  }
-
-  const getClassOwnSubjectRateData = () => {
-    if (!classOwnSubjectRates) return []
-    return subjects.map(subject => ({
-      subject: subject.name,
-      ...classOwnSubjectRates[subject.name]
-    }))
+  // 获取班级各学科三率数据
+  const getClassSubjectRateData = () => {
+    if (!classSubjectRates95 || classSubjectRates95.length === 0) return []
+    return classSubjectRates95
   }
 
   return (
     <div>
       <Card title="班级数据分析" style={{ marginBottom: 24 }}>
+        {userInfo.role === 'teacher' && (
+          <div style={{ marginBottom: 16, padding: 12, background: '#e6f7ff', borderRadius: 4 }}>
+            <p style={{ margin: 0, color: '#1890ff' }}>
+              <strong>当前登录：</strong>{userInfo.grade}年级{userInfo.class}班老师
+              （只能查看本班数据）
+            </p>
+          </div>
+        )}
+
         <div style={{ marginBottom: 16 }}>
           <span style={{ marginRight: 16 }}>选择年级：</span>
           <Select
@@ -424,6 +358,7 @@ function ClassPage() {
             value={selectedGrade}
             onChange={setSelectedGrade}
             placeholder="请选择年级"
+            disabled={userInfo.role === 'teacher'}
           >
             {grades.map(grade => (
               <Option key={grade} value={grade}>
@@ -438,6 +373,7 @@ function ClassPage() {
             value={selectedClass}
             onChange={setSelectedClass}
             placeholder="请选择班级"
+            disabled={userInfo.role === 'teacher'}
           >
             {classes.map(classNum => (
               <Option key={classNum} value={classNum}>
@@ -447,13 +383,21 @@ function ClassPage() {
           </Select>
         </div>
 
-        {classStudents.length > 0 && classOwnStandards && (
+        {classStudents.length > 0 && gradeStandards95 && (
           <div style={{ marginTop: 16 }}>
             <p style={{ marginBottom: 8 }}>
               班级总人数：<strong>{classStudents.length}</strong> 人
             </p>
+            <p style={{ marginBottom: 8 }}>
+              <span style={{ color: '#52c41a', fontWeight: 'bold' }}>年级标准参评人数：</span>
+              <strong style={{ color: '#1890ff' }}>{gradeStandards95.evaluateCount}</strong> 人
+              <span style={{ color: '#999', marginLeft: 8 }}>
+                （全年级总分前95%的学生）
+              </span>
+            </p>
             <p style={{ marginBottom: 0 }}>
-              班级标准参评人数：<strong style={{ color: '#1890ff' }}>{classOwnStandards.evaluateCount}</strong> 人
+              <span style={{ color: '#fa8c16', fontWeight: 'bold' }}>本班参评人数：</span>
+              <strong style={{ color: '#1890ff' }}>{classRates95?.evaluateCount || 0}</strong> 人
               <span style={{ color: '#999', marginLeft: 8 }}>
                 （本班总分前95%的学生）
               </span>
@@ -464,38 +408,38 @@ function ClassPage() {
 
       {classStudents.length > 0 ? (
         <>
-          <Card title="本班总分三率标准分（本班前95%）" style={{ marginBottom: 24 }}>
+          <Card title="本年级总分三率标准分（年级前95%）" style={{ marginBottom: 24 }}>
             <Table
-              dataSource={getClassOwnStandardData()}
-              columns={classOwnStandardColumns}
+              dataSource={getGradeStandardData()}
+              columns={gradeStandardColumns}
               pagination={false}
               rowKey="type"
             />
           </Card>
 
-          <Card title="本班各学科三率标准分（本班前95%）" style={{ marginBottom: 24 }}>
+          <Card title="本年级各学科三率标准分（年级前95%）" style={{ marginBottom: 24 }}>
             <Table
-              dataSource={getClassOwnSubjectStandardData()}
-              columns={classOwnSubjectStandardColumns}
+              dataSource={getGradeSubjectStandardData()}
+              columns={gradeSubjectStandardColumns}
               pagination={false}
               rowKey="subject"
               scroll={{ x: 'max-content' }}
             />
           </Card>
 
-          <Card title="本班总分三率（基于本班标准分）" style={{ marginBottom: 24 }}>
+          <Card title="本班总分三率（基于年级标准分，本班前95%参评）" style={{ marginBottom: 24 }}>
             <Table
-              dataSource={getClassOwnRateData()}
-              columns={classOwnRateColumns}
+              dataSource={getClassRateData()}
+              columns={classRateColumns}
               pagination={false}
-              rowKey={(record, index) => `class_own_rate_${index}`}
+              rowKey={(record, index) => `class_rate_${index}`}
             />
           </Card>
 
-          <Card title="本班各学科三率（基于本班标准分）" style={{ marginBottom: 24 }}>
+          <Card title="本班各学科三率（基于年级标准分，本班前95%参评）" style={{ marginBottom: 24 }}>
             <Table
-              dataSource={getClassOwnSubjectRateData()}
-              columns={classOwnSubjectRateColumns}
+              dataSource={getClassSubjectRateData()}
+              columns={classSubjectRateColumns}
               pagination={false}
               rowKey="subject"
               scroll={{ x: 'max-content' }}
