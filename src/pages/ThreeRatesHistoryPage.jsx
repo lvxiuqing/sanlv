@@ -23,9 +23,16 @@ function ThreeRatesHistoryPage({ userInfo }) {
   useEffect(() => {
     const loadGrades = async () => {
       const allGrades = await getAllGrades()
-      setGrades(allGrades)
-      if (allGrades.length > 0) {
-        setSelectedGrade(allGrades[0])
+      
+      // 如果是教师，只显示自己的年级
+      if (userInfo.role === 'teacher') {
+        setGrades([userInfo.grade])
+        setSelectedGrade(userInfo.grade)
+      } else {
+        setGrades(allGrades)
+        if (allGrades.length > 0) {
+          setSelectedGrade(allGrades[0])
+        }
       }
     }
     loadGrades()

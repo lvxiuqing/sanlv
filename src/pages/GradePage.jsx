@@ -24,13 +24,16 @@ function GradePage({ userInfo }) {
   useEffect(() => {
     const loadGrades = async () => {
       const allGrades = await getAllGrades()
-      setGrades(allGrades)
       
-      // 如果是班级老师，只加载自己年级的数据
+      // 如果是班级老师，只显示自己的年级
       if (userInfo.role === 'teacher') {
+        setGrades([userInfo.grade])
         setSelectedGrade(userInfo.grade)
-      } else if (allGrades.length > 0) {
-        setSelectedGrade(allGrades[0])
+      } else {
+        setGrades(allGrades)
+        if (allGrades.length > 0) {
+          setSelectedGrade(allGrades[0])
+        }
       }
     }
     loadGrades()
