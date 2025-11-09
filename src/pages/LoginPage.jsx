@@ -181,9 +181,6 @@ function LoginPage({ onLogin }) {
           <p style={{ marginBottom: 4 }}>
             <strong>班级老师：</strong>首次登录需设置密码，之后使用自己设置的密码登录
           </p>
-          <p style={{ marginBottom: 4 }}>
-            <strong>管理员：</strong>任意年级 + 任意班级 + 密码 admin123
-          </p>
           <p style={{ marginBottom: 0, marginTop: 12, color: '#999' }}>
             密码要求：至少6位字符
           </p>
