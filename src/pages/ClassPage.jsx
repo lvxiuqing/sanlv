@@ -36,13 +36,13 @@ function ClassPage({ userInfo }) {
 
   useEffect(() => {
     const loadGrades = async () => {
-      const allGrades = await getAllGrades()
-      
       // 如果是班级老师，只显示自己的年级
       if (userInfo.role === 'teacher') {
         setGrades([userInfo.grade])
         setSelectedGrade(userInfo.grade)
       } else {
+        // 管理员显示所有年级
+        const allGrades = await getAllGrades()
         setGrades(allGrades)
         if (allGrades.length > 0) {
           setSelectedGrade(allGrades[0])
@@ -50,7 +50,7 @@ function ClassPage({ userInfo }) {
       }
     }
     loadGrades()
-  }, [])
+  }, [userInfo])
 
   useEffect(() => {
     const loadClasses = async () => {

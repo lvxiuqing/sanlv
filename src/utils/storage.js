@@ -225,3 +225,42 @@ export const getClassesByGrade = async (grade) => {
     return []
   }
 }
+
+// 清除指定班级的所有旧数据
+export const clearClassData = async (grade, classNum) => {
+  try {
+    // 获取该班级的所有记录
+    const { data: classRecords, error: selectError } = await supabase
+      .from('score_records')
+      .select('id')
+      .eq('grade', grade)
+      .eq('class', classNum)
+    
+    if (selectError) throw selectError
+    
+    if (!classRecords || classRecords.length === 0) {
+      return {
+        deletedRecords: 0,
+        message: '该班级没有旧数据'
+      }
+    }
+    
+    // 删除该班级的所有记录
+    const { error: deleteError } = await supabase
+      .from('score_records')
+      .delete()
+      .in('id', classRecords.map(r => r.id))
+    
+    if (deleteError) throw deleteError
+    
+    console.log(`已清除 ${grade} 年级 ${classNum} 班的 ${classRecords.length} 条成绩记录`)
+    
+    return {
+      deletedRecords: classRecords.length,
+      message: `已清除 ${classRecords.length} 条旧成绩记录`
+    }
+  } catch (error) {
+    console.error('清除班级数据失败:', error)
+    throw error
+  }
+}

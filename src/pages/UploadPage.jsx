@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Upload, Button, Form, InputNumber, message, Card, Table, Input, Space } from 'antd'
-import { UploadOutlined, InboxOutlined } from '@ant-design/icons'
+import { Upload, Button, Form, InputNumber, message, Card, Table, Input, Space, Modal, Divider } from 'antd'
+import { UploadOutlined, InboxOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons'
 import * as XLSX from 'xlsx'
-import { saveRecord, saveSubjects, getRecordsByGradeClass } from '../utils/storage'
+import { saveRecord, saveSubjects, getRecordsByGradeClass, clearClassData } from '../utils/storage'
 import { 
   calculateTotalScore, 
   calculateGradeStandards, 
@@ -22,9 +22,21 @@ function UploadPage({ userInfo }) {
   const [subjects, setSubjects] = useState([])
   const [students, setStudents] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [clearing, setClearing] = useState(false)
 
   // 处理Excel文件上传
   const handleFileUpload = (file) => {
+    // 教师权限检查：确保只能上传自己班级的成绩
+    if (userInfo.role === 'teacher') {
+      const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+      const gradeNumber = typeof grade === 'string' && gradeMap[grade] ? gradeMap[grade] : parseInt(grade) || grade
+      
+      if (gradeNumber !== userInfo.grade || classNum !== userInfo.class) {
+        message.error('教师只能上传自己班级的成绩！')
+        return false
+      }
+    }
+
     if (!grade || !classNum) {
       message.error('请先输入年级和班级信息')
       return false
@@ -74,6 +86,43 @@ function UploadPage({ userInfo }) {
     setSubjects(subjects.map(s => 
       s.name === subjectName ? { ...s, totalScore: value } : s
     ))
+  }
+
+  // 清除班级旧数据
+  const handleClearClassData = () => {
+    Modal.confirm({
+      title: '确认清除本班旧数据？',
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>此操作将清除：</p>
+          <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
+            <li><strong>{grade}年级{classNum}班</strong>的所有历史成绩记录</li>
+            <li>之后重新上传的成绩将作为最新数据参与全年级三率计算</li>
+          </ul>
+          <p style={{ color: '#ff4d4f', fontWeight: 'bold' }}>
+            ⚠️ 清除后将无法恢复旧数据，请确保已备份重要信息
+          </p>
+        </div>
+      ),
+      okText: '确认清除',
+      okType: 'danger',
+      cancelText: '取消',
+      async onOk() {
+        setClearing(true)
+        try {
+          const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+          const gradeNumber = typeof grade === 'string' && gradeMap[grade] ? gradeMap[grade] : parseInt(grade) || grade
+          
+          const result = await clearClassData(gradeNumber, classNum)
+          message.success(`${result.message}，请重新上传新的成绩数据`, 5)
+        } catch (error) {
+          message.error('清除失败：' + error.message)
+        } finally {
+          setClearing(false)
+        }
+      },
+    })
   }
 
   // 保存数据
@@ -271,6 +320,24 @@ function UploadPage({ userInfo }) {
             />
           </Form.Item>
         </Form>
+
+        {grade && classNum && (
+          <div style={{ marginBottom: 24, padding: 12, background: '#fff7e6', borderRadius: 4 }}>
+            <Space>
+              <span style={{ color: '#d46b08' }}>
+                <strong>重新上传成绩？</strong>先清除本班旧数据，确保新上传的成绩能正确参与全年级三率计算
+              </span>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleClearClassData}
+                loading={clearing}
+              >
+                清除本班旧数据
+              </Button>
+            </Space>
+          </div>
+        )}
 
         <Dragger
           accept=".xlsx,.xls"
