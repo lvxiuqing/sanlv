@@ -16,12 +16,18 @@ function DataManagePage({ userInfo }) {
   const loadData = async () => {
     const data = await getAllData()
     
-    // 如果是班级老师，只显示自己班级的数据
+    // 如果是班级老师，显示自己年级的所有班级数据
     if (userInfo.role === 'teacher') {
-      const myClassRecords = data.records.filter(r => 
-        r.grade === userInfo.grade && r.class === userInfo.class
+      // 将中文年级转换为数字进行比较
+      const gradeMap = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6 }
+      const gradeNumber = typeof userInfo.grade === 'string' && gradeMap[userInfo.grade] 
+        ? gradeMap[userInfo.grade] 
+        : parseInt(userInfo.grade) || userInfo.grade
+      
+      const myGradeRecords = data.records.filter(r => 
+        r.grade === gradeNumber
       )
-      setRecords(myClassRecords)
+      setRecords(myGradeRecords)
     } else {
       // 管理员显示所有数据
       setRecords(data.records)
@@ -143,7 +149,7 @@ function DataManagePage({ userInfo }) {
           <div style={{ marginBottom: 16, padding: 12, background: '#e6f7ff', borderRadius: 4 }}>
             <p style={{ margin: 0, color: '#1890ff' }}>
               <strong>当前登录：</strong>{userInfo.grade}年级{userInfo.class}班老师
-              （只能查看已上传的成绩记录）
+              （可查看{userInfo.grade}年级所有班级的成绩记录）
             </p>
           </div>
         )}

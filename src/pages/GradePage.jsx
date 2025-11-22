@@ -297,20 +297,17 @@ function GradePage({ userInfo }) {
     }))
   }
 
-  // 教师无法访问年级数据页面
+  // 只有管理员可以访问年级数据页面
   if (userInfo.role === 'teacher') {
     return (
       <div>
         <Card title="年级数据分析" style={{ marginBottom: 24 }}>
-          <div style={{ padding: 40, textAlign: 'center', background: '#f5f5f5', borderRadius: 4 }}>
-            <p style={{ fontSize: 16, color: '#666', marginBottom: 16 }}>
+          <div style={{ padding: 40, textAlign: 'center', background: '#fff7e6', borderRadius: 4, border: '1px solid #ffd591' }}>
+            <p style={{ fontSize: 16, color: '#d46b08', marginBottom: 16 }}>
               <strong>⚠️ 权限提示</strong>
             </p>
-            <p style={{ color: '#999', marginBottom: 8 }}>
-              教师账号无法访问年级数据页面
-            </p>
-            <p style={{ color: '#999', marginBottom: 16 }}>
-              请在"班级数据"页面查看{userInfo.grade}年级{userInfo.class}班的详细数据
+            <p style={{ color: '#d46b08' }}>
+              教师账号无法访问此页面
             </p>
           </div>
         </Card>

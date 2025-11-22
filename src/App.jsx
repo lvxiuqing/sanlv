@@ -9,7 +9,8 @@ import {
   LineChartOutlined,
   UserOutlined,
   LogoutOutlined,
-  KeyOutlined
+  KeyOutlined,
+  TableOutlined
 } from '@ant-design/icons'
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { Spin } from 'antd'
@@ -24,6 +25,7 @@ const HistoryPage = lazy(() => import('./pages/HistoryPage'))
 const ThreeRatesHistoryPage = lazy(() => import('./pages/ThreeRatesHistoryPage'))
 const DataManagePage = lazy(() => import('./pages/DataManagePage'))
 const PasswordPage = lazy(() => import('./pages/PasswordPage'))
+const OverviewPage = lazy(() => import('./pages/OverviewPage'))
 
 const { Header, Content, Sider } = Layout
 
@@ -76,9 +78,14 @@ function App() {
       label: <Link to="/">成绩上传</Link>,
     },
     {
+      key: '/overview',
+      icon: <TableOutlined />,
+      label: <Link to="/overview">成绩总览</Link>,
+    },
+    {
       key: '/grade',
       icon: <BarChartOutlined />,
-      label: <Link to="/grade">年级数据</Link>,
+      label: <Link to="/grade">全年级数据（90%参评）</Link>,
     },
     {
       key: '/class',
@@ -164,6 +171,7 @@ function App() {
             }>
               <Routes>
                 <Route path="/" element={<UploadPage userInfo={userInfo} />} />
+                <Route path="/overview" element={<OverviewPage userInfo={userInfo} />} />
                 <Route path="/grade" element={<GradePage userInfo={userInfo} />} />
                 <Route path="/class" element={<ClassPage userInfo={userInfo} />} />
                 <Route path="/history" element={<HistoryPage userInfo={userInfo} />} />
