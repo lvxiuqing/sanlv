@@ -428,8 +428,13 @@ function OverviewPage({ userInfo }) {
         dispersalData: dispersalData
       }
 
-      // 调用后端 API（使用相对路径，Vite 会自动代理到后端）
-      const response = await fetch('/api/analyze', {
+      // 调用后端 API
+      // 开发环境：使用相对路径（Vite 代理到 localhost:3002）
+      // 生产环境：使用 VITE_API_URL 环境变量
+      const apiUrl = import.meta.env.VITE_API_URL || ''
+      const apiEndpoint = apiUrl ? `${apiUrl}/api/analyze` : '/api/analyze'
+      
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
