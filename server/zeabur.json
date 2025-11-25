@@ -1,8 +1,5 @@
 {
   "build": {
     "builder": "nodejs"
-  },
-  "serverless": {
-    "root": "."
   }
 }
