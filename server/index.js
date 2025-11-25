@@ -90,15 +90,21 @@ app.use((req, res) => {
 })
 
 // 启动服务器
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('')
   console.log('╔════════════════════════════════════════╗')
   console.log('║    AI 分析服务已启动                   ║')
-  console.log(`║    地址: http://localhost:${PORT}${' '.repeat(PORT.toString().length > 4 ? 0 : 4 - PORT.toString().length)}║`)
+  console.log(`║    地址: http://0.0.0.0:${PORT}${' '.repeat(PORT.toString().length > 4 ? 0 : 4 - PORT.toString().length)}║`)
   console.log('║    API: POST /api/analyze              ║')
   console.log('║    健康检查: GET /health               ║')
   console.log('╚════════════════════════════════════════╝')
   console.log('')
+})
+
+// 处理启动错误
+server.on('error', (err) => {
+  console.error('服务器启动错误:', err)
+  process.exit(1)
 })
 
 // 优雅关闭
