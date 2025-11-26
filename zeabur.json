@@ -1,8 +1,5 @@
 {
   "build": {
-    "builder": "static"
-  },
-  "serverless": {
-    "root": "."
+    "builder": "vite"
   }
 }
