@@ -18,6 +18,10 @@ export default defineConfig({
     // 代码分割优化
     rollupOptions: {
       output: {
+        // 添加哈希值到文件名，实现缓存破坏
+        entryFileNames: 'js/[name]-[hash].js',
+        chunkFileNames: 'js/[name]-[hash].js',
+        assetFileNames: '[ext]/[name]-[hash][extname]',
         manualChunks: {
           // 将React相关库打包到一起
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
