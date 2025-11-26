@@ -1,5 +1,7 @@
 {
   "build": {
-    "builder": "vite"
+    "builder": "vite",
+    "buildCommand": "npm run build",
+    "outputDir": "dist"
   }
 }
