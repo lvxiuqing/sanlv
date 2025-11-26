@@ -2,11 +2,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# 复制 package.json 和 package-lock.json
-COPY package*.json ./
+# 复制 package.json
+COPY package.json ./
 
-# 安装依赖
-RUN npm ci --only=production
+# 安装依赖（仅生产依赖）
+RUN npm install --omit=dev
 
 # 复制应用代码
 COPY . .
